@@ -3,12 +3,12 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-        xmlns:models="clr-namespace:ChatRoom.Models"
         xmlns:vm="clr-namespace:ChatRoom.ViewModels"
         mc:Ignorable="d"
-        Title="ChatRoom 聊天室" Width="1280" Height="800"
-        MinWidth="1000" MinHeight="640"
+        Title="ChatRoom 聊天室" Width="1360" Height="820"
+        MinWidth="1100" MinHeight="660"
         FontFamily="Microsoft YaHei UI" FontSize="12"
+        Background="{StaticResource BgBrush}"
         WindowStartupLocation="CenterScreen">
     <Window.Resources>
         <BooleanToVisibilityConverter x:Key="BoolToVis"/>
@@ -16,34 +16,37 @@
 
         <!-- 系统消息 -->
         <DataTemplate DataType="{x:Type vm:SystemMessageItem}">
-            <TextBlock Text="{Binding Text}" Foreground="#7F8C8D" FontStyle="Italic"
-                       TextWrapping="Wrap" Margin="2,2"/>
+            <TextBlock Text="{Binding Text}" Foreground="{StaticResource TextLightBrush}" FontStyle="Italic"
+                       TextWrapping="Wrap" Margin="4,3" FontSize="11" HorizontalAlignment="Center"/>
         </DataTemplate>
 
-        <!-- 文本消息：本人右对齐蓝色气泡，他人左对齐灰色气泡 -->
+        <!-- 文本消息：本人右对齐翡翠绿气泡，他人左对齐浅绿气泡 -->
         <DataTemplate DataType="{x:Type vm:ChatMessageItem}">
-            <StackPanel Margin="2,6" HorizontalAlignment="{Binding IsMine, Converter={StaticResource BoolToAlign}}">
-                <StackPanel Orientation="Horizontal" Margin="2,0,2,2"
+            <StackPanel Margin="4,6" MaxWidth="640"
+                        HorizontalAlignment="{Binding IsMine, Converter={StaticResource BoolToAlign}}">
+                <StackPanel Orientation="Horizontal" Margin="4,0,4,3"
                             HorizontalAlignment="{Binding IsMine, Converter={StaticResource BoolToAlign}}">
-                    <TextBlock Text="{Binding SenderDisplay}" FontWeight="Bold" Foreground="#2C3E50"/>
-                    <TextBlock Text="{Binding Data.SentTime, StringFormat='  {0:HH:mm:ss}'}" Foreground="#95A5A6" FontSize="10" Margin="6,1,0,0"/>
+                    <TextBlock Text="{Binding SenderDisplay}" FontWeight="SemiBold" FontSize="11"
+                               Foreground="{StaticResource TextGrayBrush}"/>
+                    <TextBlock Text="{Binding Data.SentTime, StringFormat='  {0:HH:mm:ss}'}" FontSize="10"
+                               Foreground="{StaticResource TextLightBrush}" VerticalAlignment="Center" Margin="8,0,0,0"/>
                 </StackPanel>
-                <Border MaxWidth="480" Padding="10,7" CornerRadius="6"
+                <Border Padding="11,7" CornerRadius="8"
                         HorizontalAlignment="{Binding IsMine, Converter={StaticResource BoolToAlign}}">
                     <Border.Style>
                         <Style TargetType="Border">
-                            <Setter Property="Background" Value="#ECF0F1"/>
+                            <Setter Property="Background" Value="#EFF5F1"/>
                             <Style.Triggers>
                                 <DataTrigger Binding="{Binding IsMine}" Value="True">
-                                    <Setter Property="Background" Value="#3498DB"/>
+                                    <Setter Property="Background" Value="{StaticResource PrimaryBrush}"/>
                                 </DataTrigger>
                             </Style.Triggers>
                         </Style>
                     </Border.Style>
-                    <TextBlock Text="{Binding Data.Content}" TextWrapping="Wrap">
+                    <TextBlock Text="{Binding Data.Content}" TextWrapping="Wrap" FontSize="13" LineHeight="20">
                         <TextBlock.Style>
                             <Style TargetType="TextBlock">
-                                <Setter Property="Foreground" Value="#303030"/>
+                                <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
                                 <Style.Triggers>
                                     <DataTrigger Binding="{Binding IsMine}" Value="True">
                                         <Setter Property="Foreground" Value="White"/>
@@ -56,57 +59,88 @@
             </StackPanel>
         </DataTemplate>
 
-        <!-- 文件消息：本人右对齐 -->
+        <!-- 文件消息：图标 + 名称 + 大小/状态 + 下载 -->
         <DataTemplate DataType="{x:Type vm:FileMessageItem}">
-            <StackPanel Margin="2,6" HorizontalAlignment="{Binding IsMine, Converter={StaticResource BoolToAlign}}">
-                <StackPanel Orientation="Horizontal" Margin="2,0,2,2"
+            <StackPanel Margin="4,6" MaxWidth="620"
+                        HorizontalAlignment="{Binding IsMine, Converter={StaticResource BoolToAlign}}">
+                <StackPanel Orientation="Horizontal" Margin="4,0,4,3"
                             HorizontalAlignment="{Binding IsMine, Converter={StaticResource BoolToAlign}}">
-                    <TextBlock Text="{Binding SenderDisplay}" FontWeight="Bold" Foreground="#2C3E50"/>
-                    <TextBlock Text="{Binding Data.SentTime, StringFormat='  {0:HH:mm:ss}'}" Foreground="#95A5A6" FontSize="10" Margin="6,1,0,0"/>
+                    <TextBlock Text="{Binding SenderDisplay}" FontWeight="SemiBold" FontSize="11"
+                               Foreground="{StaticResource TextGrayBrush}"/>
+                    <TextBlock Text="{Binding Data.SentTime, StringFormat='  {0:HH:mm:ss}'}" FontSize="10"
+                               Foreground="{StaticResource TextLightBrush}" VerticalAlignment="Center" Margin="8,0,0,0"/>
                 </StackPanel>
-                <Border MaxWidth="520" Padding="8,5" CornerRadius="6"
+                <Border Padding="10,8" CornerRadius="8"
                         HorizontalAlignment="{Binding IsMine, Converter={StaticResource BoolToAlign}}">
                     <Border.Style>
                         <Style TargetType="Border">
-                            <Setter Property="Background" Value="#F0F2F5"/>
-                            <Setter Property="BorderBrush" Value="#D5DBDB"/>
+                            <Setter Property="Background" Value="#F3F6F4"/>
+                            <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}"/>
                             <Setter Property="BorderThickness" Value="1"/>
                             <Style.Triggers>
                                 <DataTrigger Binding="{Binding IsMine}" Value="True">
-                                    <Setter Property="Background" Value="#D6EAF8"/>
-                                    <Setter Property="BorderBrush" Value="#A9CCE3"/>
+                                    <Setter Property="Background" Value="#E2F0EA"/>
+                                    <Setter Property="BorderBrush" Value="#B8D9D0"/>
                                 </DataTrigger>
                             </Style.Triggers>
                         </Style>
                     </Border.Style>
                     <StackPanel Orientation="Horizontal">
-                        <TextBlock Text="📎" FontSize="14" VerticalAlignment="Center"/>
-                        <TextBlock Text="{Binding Data.FileName}" Foreground="#2C3E50" Margin="6,0,6,0"
-                                   TextTrimming="CharacterEllipsis" MaxWidth="220" VerticalAlignment="Center"/>
-                        <TextBlock Text="{Binding SizeText}" Foreground="#7F8C8D" Margin="0,0,10,0" VerticalAlignment="Center"/>
-                        <TextBlock Text="{Binding StateText}" Foreground="#F39C12" VerticalAlignment="Center"/>
+                        <TextBlock Text="&#xE8A5;" FontFamily="Segoe MDL2 Assets" FontSize="20"
+                                   Foreground="{StaticResource PrimaryBrush}" VerticalAlignment="Center"/>
+                        <StackPanel Margin="8,0,0,0" VerticalAlignment="Center">
+                            <TextBlock Text="{Binding Data.FileName}" Foreground="{StaticResource TextBrush}" FontSize="12"
+                                       TextTrimming="CharacterEllipsis" MaxWidth="260"/>
+                            <StackPanel Orientation="Horizontal" Margin="0,2,0,0">
+                                <TextBlock Text="{Binding SizeText}" FontSize="10" Foreground="{StaticResource TextGrayBrush}"/>
+                                <TextBlock Text=" · " FontSize="10" Foreground="{StaticResource BorderBrush}"/>
+                                <TextBlock Text="{Binding StateText}" FontSize="10" Foreground="{StaticResource WarningBrush}"/>
+                            </StackPanel>
+                        </StackPanel>
                         <Button Content="下载" Click="BtnDownload_Click" Tag="{Binding}"
-                                Background="#3498DB" Foreground="White" BorderThickness="0" Padding="10,2"
-                                Cursor="Hand" VerticalAlignment="Center" Margin="8,0,0,0"/>
+                                Background="{StaticResource PrimaryBrush}" Padding="12,5"
+                                Margin="14,0,0,0" VerticalAlignment="Center"/>
                     </StackPanel>
                 </Border>
             </StackPanel>
         </DataTemplate>
 
-        <!-- 图片消息：本人右对齐 -->
+        <!-- 图片消息：占位/缩略图 + 未认证遮罩提示 -->
         <DataTemplate DataType="{x:Type vm:ImageMessageItem}">
-            <StackPanel Margin="2,6" HorizontalAlignment="{Binding IsMine, Converter={StaticResource BoolToAlign}}">
-                <StackPanel Orientation="Horizontal" Margin="2,0,2,2"
+            <StackPanel Margin="4,6" MaxWidth="320"
+                        HorizontalAlignment="{Binding IsMine, Converter={StaticResource BoolToAlign}}">
+                <StackPanel Orientation="Horizontal" Margin="4,0,4,3"
                             HorizontalAlignment="{Binding IsMine, Converter={StaticResource BoolToAlign}}">
-                    <TextBlock Text="{Binding SenderDisplay}" FontWeight="Bold" Foreground="#2C3E50"/>
-                    <TextBlock Text="{Binding Data.SentTime, StringFormat='  {0:HH:mm:ss}'}" Foreground="#95A5A6" FontSize="10" Margin="6,1,0,0"/>
+                    <TextBlock Text="{Binding SenderDisplay}" FontWeight="SemiBold" FontSize="11"
+                               Foreground="{StaticResource TextGrayBrush}"/>
+                    <TextBlock Text="{Binding Data.SentTime, StringFormat='  {0:HH:mm:ss}'}" FontSize="10"
+                               Foreground="{StaticResource TextLightBrush}" VerticalAlignment="Center" Margin="8,0,0,0"/>
                 </StackPanel>
-                <Border BorderBrush="#D5DBDB" BorderThickness="1" Padding="3" CornerRadius="6"
+                <Border BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" Padding="3"
+                        CornerRadius="6" Background="White"
                         HorizontalAlignment="{Binding IsMine, Converter={StaticResource BoolToAlign}}">
                     <Button Background="Transparent" BorderThickness="0" Padding="0" Cursor="Hand"
-                            Click="ImgView_Click" Tag="{Binding}"
-                            ToolTip="点击查看原图（需认证）">
-                        <Image Source="{Binding ImageSource}" MaxWidth="200" MaxHeight="150" Stretch="Uniform"/>
+                            Click="ImgView_Click" Tag="{Binding}" ToolTip="点击查看原图（需认证）">
+                        <Grid>
+                            <Image Source="{Binding ImageSource}" MaxWidth="220" MaxHeight="160" Stretch="Uniform"/>
+                            <Border VerticalAlignment="Bottom" HorizontalAlignment="Stretch" CornerRadius="0,0,3,3" Padding="4,2">
+                                <Border.Style>
+                                    <Style TargetType="Border">
+                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                        <Setter Property="Background" Value="#B3000000"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding DataContext.Client.IsAuthenticated, RelativeSource={RelativeSource AncestorType=Window}}" Value="False">
+                                                <Setter Property="Visibility" Value="Visible"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Border.Style>
+                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                                    <TextBlock Text="&#xE72E;" FontFamily="Segoe MDL2 Assets" FontSize="10" Foreground="White" VerticalAlignment="Center"/>
+                                    <TextBlock Text=" 点击查看原图（需认证）" FontSize="10" Foreground="White"/>
+                                </StackPanel>
+                            </Border>
+                        </Grid>
                     </Button>
                 </Border>
             </StackPanel>
@@ -114,27 +148,34 @@
 
         <!-- 已加入房间列表项 -->
         <DataTemplate DataType="{x:Type vm:JoinedRoomItem}">
-            <Grid Margin="2,4">
+            <Grid Margin="2,2">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto"/>
                     <RowDefinition Height="Auto"/>
                 </Grid.RowDefinitions>
-                <StackPanel Grid.Row="0" Orientation="Horizontal">
-                    <Ellipse Width="8" Height="8" Fill="#E74C3C" VerticalAlignment="Center"
+                <Grid Grid.Row="0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+                    <Ellipse Grid.Column="0" Width="8" Height="8" Fill="{StaticResource DangerBrush}" VerticalAlignment="Center"
                              Visibility="{Binding HasNewMessage, Converter={StaticResource BoolToVis}}"/>
-                    <TextBlock Text="{Binding RoomId}" FontWeight="Bold" Foreground="#2C3E50" Margin="5,0,4,0"/>
-                    <TextBlock Text="{Binding Name}" Foreground="#34495E" TextTrimming="CharacterEllipsis" MaxWidth="120"/>
-                </StackPanel>
-                <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="13,1,0,0">
-                    <TextBlock Text="{Binding OnlineCount, StringFormat='在线 {0} 人'}" Foreground="#7F8C8D" FontSize="10"/>
-                    <TextBlock Text="  ·  " Foreground="#BDC3C7" FontSize="10"/>
+                    <StackPanel Grid.Column="1" Orientation="Horizontal" Margin="6,0,0,0">
+                        <TextBlock Text="{Binding RoomId}" FontWeight="Bold" FontSize="12" Foreground="{StaticResource TextBrush}"/>
+                        <TextBlock Text="{Binding Name}" FontSize="11" Foreground="{StaticResource TextGrayBrush}" Margin="6,0,0,0"
+                                   TextTrimming="CharacterEllipsis" MaxWidth="120"/>
+                    </StackPanel>
+                </Grid>
+                <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="14,2,0,0">
+                    <TextBlock Text="{Binding OnlineCount, StringFormat='在线 {0} 人'}" FontSize="10" Foreground="{StaticResource TextLightBrush}"/>
+                    <TextBlock Text="  ·  " FontSize="10" Foreground="{StaticResource BorderBrush}"/>
                     <TextBlock Text="{Binding AvailabilityText}" FontSize="10">
                         <TextBlock.Style>
                             <Style TargetType="TextBlock">
-                                <Setter Property="Foreground" Value="#2ECC71"/>
+                                <Setter Property="Foreground" Value="{StaticResource SuccessBrush}"/>
                                 <Style.Triggers>
                                     <DataTrigger Binding="{Binding Available}" Value="False">
-                                        <Setter Property="Foreground" Value="#E74C3C"/>
+                                        <Setter Property="Foreground" Value="{StaticResource DangerBrush}"/>
                                     </DataTrigger>
                                 </Style.Triggers>
                             </Style>
@@ -143,273 +184,443 @@
                 </StackPanel>
             </Grid>
         </DataTemplate>
+
+        <!-- 房间用户列表项：圆形状态点 + 用户名 + ID -->
+        <DataTemplate x:Key="RoomUserItemTemplate">
+            <Grid Margin="2,1">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="16"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <Ellipse Grid.Column="0" Width="9" Height="9" VerticalAlignment="Center">
+                    <Ellipse.Style>
+                        <Style TargetType="Ellipse">
+                            <Setter Property="Fill" Value="#BFCAC4"/>
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding Online}" Value="True">
+                                    <Setter Property="Fill" Value="{StaticResource SuccessBrush}"/>
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Ellipse.Style>
+                </Ellipse>
+                <StackPanel Grid.Column="1" Orientation="Horizontal" Margin="6,0,0,0">
+                    <TextBlock Text="{Binding UserName}" FontSize="11" Foreground="{StaticResource TextBrush}">
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock">
+                                <Setter Property="FontWeight" Value="Normal"/>
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsMe}" Value="True">
+                                        <Setter Property="FontWeight" Value="Bold"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
+                    <TextBlock Text="{Binding UserId}" FontSize="9" Foreground="{StaticResource TextLightBrush}"
+                               Margin="6,0,0,0" TextTrimming="CharacterEllipsis" MaxWidth="110"/>
+                </StackPanel>
+                <TextBlock Grid.Column="2" Text="我" FontSize="9" FontWeight="Bold" Foreground="{StaticResource PrimaryBrush}"
+                           Margin="4,0,0,0" VerticalAlignment="Center"
+                           Visibility="{Binding IsMe, Converter={StaticResource BoolToVis}}"/>
+            </Grid>
+        </DataTemplate>
     </Window.Resources>
 
     <Grid>
         <Grid.RowDefinitions>
-            <RowDefinition Height="44"/>
+            <RowDefinition Height="48"/>
             <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
 
         <!-- ================= 顶部：运行模式 + 认证 ================= -->
-        <Border Grid.Row="0" Background="#34495E">
-            <DockPanel LastChildFill="False" Margin="12,0">
-                <TextBlock Text="运行模式：" Foreground="White" VerticalAlignment="Center"/>
-                <RadioButton x:Name="RbClient" Content="客户端" Foreground="White" VerticalAlignment="Center"
-                             GroupName="mode" Margin="12,0,0,0" Checked="RbClient_Checked" IsChecked="True"/>
-                <RadioButton x:Name="RbServer" Content="服务器" Foreground="White" VerticalAlignment="Center"
-                             GroupName="mode" Margin="16,0,0,0" Checked="RbServer_Checked"/>
-                <RadioButton x:Name="RbBoth" Content="客户端 + 服务器" Foreground="White" VerticalAlignment="Center"
-                             GroupName="mode" Margin="16,0,0,0" Checked="RbBoth_Checked"/>
+        <Border Grid.Row="0" Background="{StaticResource PrimaryBrush}">
+            <DockPanel LastChildFill="False" Margin="14,0">
+                <TextBlock Text="运行模式：" Foreground="White" VerticalAlignment="Center" FontSize="12"/>
+                <RadioButton x:Name="RbClient" Content="客户端" GroupName="mode" Margin="12,0,0,0" VerticalAlignment="Center"
+                             Foreground="White" Checked="RbClient_Checked" IsChecked="True"/>
+                <RadioButton x:Name="RbServer" Content="服务器" GroupName="mode" Margin="16,0,0,0" VerticalAlignment="Center"
+                             Foreground="White" Checked="RbServer_Checked"/>
+                <RadioButton x:Name="RbBoth" Content="客户端 + 服务器" GroupName="mode" Margin="16,0,0,0" VerticalAlignment="Center"
+                             Foreground="White" Checked="RbBoth_Checked"/>
 
                 <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
-                    <TextBlock x:Name="TxtAuthStatus" Foreground="#F1C40F" VerticalAlignment="Center" Margin="0,0,10,0"/>
-                    <Button Content="注 册" Click="BtnRegister_Click" Background="#3498DB" Foreground="White"
-                            BorderThickness="0" Padding="12,4" Cursor="Hand"/>
+                    <TextBlock x:Name="TxtAuthStatus" Foreground="#FFD100" VerticalAlignment="Center" Margin="0,0,12,0" FontSize="11"/>
+                    <Button Content="注 册" Click="BtnRegister_Click" Padding="16,5" FontSize="11" Background="{StaticResource PrimaryDarkBrush}"/>
                 </StackPanel>
             </DockPanel>
         </Border>
 
-        <!-- ================= 内容区 ================= -->
+        <!-- ================= 内容区：服务器 | 聊天主区 | 客户端侧栏 ================= -->
         <Grid Grid.Row="1">
             <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="Auto"/>
                 <ColumnDefinition Width="*"/>
-                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="Auto"/>
             </Grid.ColumnDefinitions>
 
-            <!-- ========== 服务器面板 ========== -->
-            <Border Grid.Column="0" Background="#F0F2F5" BorderBrush="#BDC3C7" BorderThickness="0,0,1,0"
+            <!-- ========== 左：服务器面板（内容超出可滚动，避免裁剪） ========== -->
+            <Border Grid.Column="0" Width="400" MinWidth="340" MaxWidth="560" Background="White"
+                    BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,1,0"
                     Visibility="{Binding IsServerVisible, Converter={StaticResource BoolToVis}}">
-                <Grid Margin="10">
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="*"/>
-                        <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="110"/>
-                    </Grid.RowDefinitions>
+                <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Padding="12,10">
+                    <StackPanel>
+                        <!-- 服务器状态 -->
+                        <Border Style="{StaticResource CardStyle}" Margin="0,0,0,8">
+                            <StackPanel>
+                                <TextBlock Text="服务器状态" Style="{StaticResource SectionTitleStyle}"/>
+                                <WrapPanel>
+                                    <TextBlock Text="{Binding Server.StatusText}" FontWeight="Bold" FontSize="12"
+                                               Foreground="{StaticResource TextBrush}" VerticalAlignment="Center"/>
+                                    <TextBlock Text="端口：" VerticalAlignment="Center" Margin="12,0,4,0"/>
+                                    <TextBox x:Name="TxtServerPort" Text="{Binding Server.PortText}" Width="60"/>
+                                    <Button x:Name="BtnStartServer" Content="创建服务器" Click="BtnStartServer_Click"
+                                            Background="{StaticResource SuccessBrush}" Margin="8,0,0,0"/>
+                                    <Button x:Name="BtnStopServer" Content="关闭服务器" Click="BtnStopServer_Click"
+                                            Background="{StaticResource DangerBrush}" Margin="6,0,0,0"/>
+                                </WrapPanel>
+                            </StackPanel>
+                        </Border>
 
-                    <!-- 服务器状态栏 -->
-                    <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,8">
-                        <TextBlock Text="{Binding Server.StatusText}" VerticalAlignment="Center" FontWeight="Bold" Foreground="#2C3E50"/>
-                        <TextBlock Text="端口：" VerticalAlignment="Center" Margin="20,0,4,0"/>
-                        <TextBox x:Name="TxtServerPort" Text="{Binding Server.PortText}" Width="70" VerticalContentAlignment="Center"/>
-                        <Button x:Name="BtnStartServer" Content="创建服务器" Click="BtnStartServer_Click"
-                                Background="#3498DB" Foreground="White" BorderThickness="0" Padding="14,5"
-                                Margin="10,0,0,0" Cursor="Hand"/>
-                        <Button x:Name="BtnStopServer" Content="关闭服务器" Click="BtnStopServer_Click"
-                                Background="#E74C3C" Foreground="White" BorderThickness="0" Padding="14,5"
-                                Margin="8,0,0,0" Cursor="Hand"/>
+                        <!-- 房间管理 -->
+                        <Border Style="{StaticResource CardStyle}" Margin="0,0,0,8">
+                            <StackPanel>
+                                <TextBlock Text="创建 / 关闭房间" Style="{StaticResource SectionTitleStyle}"/>
+                                <WrapPanel>
+                                    <TextBlock Text="房间号：" VerticalAlignment="Center"/>
+                                    <TextBox x:Name="TxtNewRoomId" Text="{Binding Server.CreateRoomId}" Width="60"
+                                             ToolTip="留空则随机生成 4~6 位"/>
+                                    <TextBlock Text="名称：" VerticalAlignment="Center" Margin="10,0,4,0"/>
+                                    <TextBox x:Name="TxtNewRoomName" Text="{Binding Server.CreateRoomName}" Width="110"/>
+                                </WrapPanel>
+                                <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
+                                    <Button Content="创建房间" Click="BtnCreateRoom_Click" Background="{StaticResource SuccessBrush}" Padding="16,5"/>
+                                    <Button Content="关闭选中房间" Click="BtnCloseRoom_Click" Background="{StaticResource DangerBrush}" Padding="16,5" Margin="8,0,0,0"/>
+                                </StackPanel>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- 房间列表 -->
+                        <Border Style="{StaticResource CardStyle}" Margin="0,0,0,8">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="200"/>
+                                </Grid.RowDefinitions>
+                                <TextBlock Grid.Row="0" Text="房间列表" Style="{StaticResource SectionTitleStyle}"/>
+                                <DataGrid Grid.Row="1" x:Name="DgvRooms" ItemsSource="{Binding Server.Rooms}"
+                                          SelectedItem="{Binding Server.SelectedRoom, Mode=TwoWay}"
+                                          AutoGenerateColumns="False" IsReadOnly="True"
+                                          SelectionMode="Single" HeadersVisibility="Column"
+                                          BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
+                                          RowHeaderWidth="0" GridLinesVisibility="None">
+                                    <DataGrid.Columns>
+                                        <DataGridTextColumn x:Name="ColRoomId" Header="房间号" Binding="{Binding RoomId}" Width="56"/>
+                                        <DataGridTemplateColumn x:Name="ColName" Header="名称" Width="*">
+                                            <DataGridTemplateColumn.CellTemplate>
+                                                <DataTemplate>
+                                                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                                        <TextBlock Text="{Binding Name}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+                                                        <Border Margin="6,0,0,0" Padding="5,1" CornerRadius="3"
+                                                                Background="{StaticResource PrimaryLightBrush}" VerticalAlignment="Center">
+                                                            <Border.Style>
+                                                                <Style TargetType="Border">
+                                                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                                                    <Style.Triggers>
+                                                                        <DataTrigger Binding="{Binding RoomId}" Value="0000">
+                                                                            <Setter Property="Visibility" Value="Visible"/>
+                                                                        </DataTrigger>
+                                                                    </Style.Triggers>
+                                                                </Style>
+                                                            </Border.Style>
+                                                            <TextBlock Text="默认" FontSize="9" FontWeight="SemiBold"
+                                                                       Foreground="{StaticResource PrimaryBrush}"/>
+                                                        </Border>
+                                                    </StackPanel>
+                                                </DataTemplate>
+                                            </DataGridTemplateColumn.CellTemplate>
+                                        </DataGridTemplateColumn>
+                                        <DataGridTextColumn x:Name="ColOnline" Header="在线" Binding="{Binding OnlineCount}" Width="40"/>
+                                        <DataGridTextColumn x:Name="ColTotal" Header="总人数" Binding="{Binding TotalText}" Width="48"/>
+                                        <DataGridTextColumn x:Name="ColStatus" Header="状态" Binding="{Binding StatusText}" Width="48"/>
+                                    </DataGrid.Columns>
+                                </DataGrid>
+                            </Grid>
+                        </Border>
+
+                        <!-- 成员管理 -->
+                        <Border Style="{StaticResource CardStyle}" Margin="0,0,0,8">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="100"/>
+                                    <RowDefinition Height="Auto"/>
+                                </Grid.RowDefinitions>
+                                <TextBlock Grid.Row="0" Text="{Binding Server.RoomDetailsTitle}" FontWeight="SemiBold" FontSize="11"
+                                           Foreground="{StaticResource TextBrush}" Margin="0,0,0,4" TextTrimming="CharacterEllipsis"/>
+                                <ListView Grid.Row="1" x:Name="LstRoomMembers" ItemsSource="{Binding Server.RoomMembers}"
+                                          SelectionChanged="LstRoomMembers_SelectionChanged" Margin="0,0,0,6">
+                                    <ListView.ItemTemplate>
+                                        <DataTemplate>
+                                            <StackPanel Orientation="Horizontal">
+                                                <TextBlock Text="{Binding UserName}" FontWeight="SemiBold" FontSize="11"
+                                                           Foreground="{StaticResource TextBrush}" Width="60" TextTrimming="CharacterEllipsis"/>
+                                                <TextBlock Text="{Binding UserId}" FontSize="9" Foreground="{StaticResource TextLightBrush}"
+                                                           Width="100" TextTrimming="CharacterEllipsis"/>
+                                                <TextBlock Text="{Binding Ip}" FontSize="9" Foreground="{StaticResource TextGrayBrush}"
+                                                           TextTrimming="CharacterEllipsis"/>
+                                            </StackPanel>
+                                        </DataTemplate>
+                                    </ListView.ItemTemplate>
+                                </ListView>
+                                <StackPanel Grid.Row="2" Orientation="Horizontal">
+                                    <Button Content="踢出" Click="BtnKick_Click" Background="{StaticResource DangerBrush}" Padding="12,4"/>
+                                    <Button Content="拉黑 ID" Click="BtnBanId_Click" Background="{StaticResource WarningBrush}" Padding="12,4" Margin="6,0,0,0"/>
+                                    <Button Content="拉黑 IP" Click="BtnBanIp_Click" Background="{StaticResource WarningBrush}" Padding="12,4" Margin="6,0,0,0"/>
+                                </StackPanel>
+                            </Grid>
+                        </Border>
+
+                        <!-- 黑名单 -->
+                        <Border Style="{StaticResource CardStyle}" Margin="0,0,0,8">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="76"/>
+                                    <RowDefinition Height="Auto"/>
+                                </Grid.RowDefinitions>
+                                <TextBlock Grid.Row="0" Text="房间黑名单" Style="{StaticResource SectionTitleStyle}"/>
+                                <ListView Grid.Row="1" x:Name="LstRoomBlacklist" ItemsSource="{Binding Server.RoomBlacklist}"
+                                          SelectionChanged="LstRoomBlacklist_SelectionChanged" Margin="0,0,0,6">
+                                    <ListView.ItemTemplate>
+                                        <DataTemplate>
+                                            <StackPanel Orientation="Horizontal">
+                                                <TextBlock Text="{Binding Key}" FontFamily="Consolas" FontSize="10"
+                                                           Foreground="{StaticResource TextBrush}" Width="96" TextTrimming="CharacterEllipsis"/>
+                                                <TextBlock Text="{Binding KeyType}" FontSize="10" Foreground="{StaticResource TextGrayBrush}" Width="40"/>
+                                                <TextBlock Text="{Binding AddedTime, StringFormat='{}{0:MM-dd HH:mm}'}" FontSize="9"
+                                                           Foreground="{StaticResource TextLightBrush}" Width="76"/>
+                                            </StackPanel>
+                                        </DataTemplate>
+                                    </ListView.ItemTemplate>
+                                </ListView>
+                                <Button Grid.Row="2" Content="解除黑名单" Click="BtnUnban_Click" HorizontalAlignment="Left"
+                                        Background="{StaticResource SuccessBrush}" Padding="12,4"/>
+                            </Grid>
+                        </Border>
+
+                        <!-- 统计 + 0000 发言上限 -->
+                        <Border Style="{StaticResource CardStyle}" Margin="0,0,0,8">
+                            <StackPanel>
+                                <WrapPanel>
+                                    <TextBlock Text="{Binding Server.ConnectedCountText}" FontSize="11" Foreground="{StaticResource TextGrayBrush}" VerticalAlignment="Center"/>
+                                    <TextBlock Text="{Binding Server.OnlineUserText}" FontSize="11" Foreground="{StaticResource TextGrayBrush}" Margin="14,0,0,0" VerticalAlignment="Center"/>
+                                    <TextBlock Text="{Binding Server.RoomCountText}" FontSize="11" Foreground="{StaticResource TextGrayBrush}" Margin="14,0,0,0" VerticalAlignment="Center"/>
+                                </WrapPanel>
+                                <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
+                                    <TextBlock Text="0000 发言上限:" FontSize="11" Foreground="{StaticResource TextGrayBrush}" VerticalAlignment="Center"/>
+                                    <TextBox x:Name="TxtLimit" Text="{Binding Server.LimitText}" Width="48" Margin="6,0,0,0"/>
+                                    <Button Content="保存" Click="BtnSaveLimit_Click" Background="{StaticResource PrimaryBrush}" Padding="12,4" Margin="6,0,0,0"/>
+                                </StackPanel>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- 日志 -->
+                        <Border Style="{StaticResource CardStyle}">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="110"/>
+                                </Grid.RowDefinitions>
+                                <TextBlock Grid.Row="0" Text="服务器日志" Style="{StaticResource SectionTitleStyle}"/>
+                                <ListBox Grid.Row="1" x:Name="LstServerLog" ItemsSource="{Binding Server.Logs}"
+                                         FontFamily="Consolas" FontSize="10" Foreground="{StaticResource TextGrayBrush}"
+                                         Background="Transparent" BorderThickness="0"
+                                         ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                                    <ListBox.ItemContainerStyle>
+                                        <Style TargetType="ListBoxItem">
+                                            <Setter Property="Padding" Value="4,2"/>
+                                            <Setter Property="Margin" Value="0,0"/>
+                                        </Style>
+                                    </ListBox.ItemContainerStyle>
+                                </ListBox>
+                            </Grid>
+                        </Border>
                     </StackPanel>
-
-                    <!-- 房间管理栏 -->
-                    <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,0,0,8">
-                        <TextBlock Text="房间号：" VerticalAlignment="Center"/>
-                        <TextBox x:Name="TxtNewRoomId" Text="{Binding Server.CreateRoomId}" Width="70" VerticalContentAlignment="Center"
-                                 ToolTip="留空则随机生成 4~6 位"/>
-                        <TextBlock Text="名称：" VerticalAlignment="Center" Margin="12,0,4,0"/>
-                        <TextBox x:Name="TxtNewRoomName" Text="{Binding Server.CreateRoomName}" Width="140" VerticalContentAlignment="Center"/>
-                        <Button Content="创建房间" Click="BtnCreateRoom_Click" Background="#2ECC71" Foreground="White"
-                                BorderThickness="0" Padding="14,5" Margin="10,0,0,0" Cursor="Hand"/>
-                        <Button Content="关闭选中房间" Click="BtnCloseRoom_Click" Background="#E74C3C" Foreground="White"
-                                BorderThickness="0" Padding="14,5" Margin="8,0,0,0" Cursor="Hand"/>
-                    </StackPanel>
-
-                    <!-- 房间列表 -->
-                    <Grid Grid.Row="2">
-                        <DataGrid x:Name="DgvRooms" ItemsSource="{Binding Server.Rooms}"
-                                  AutoGenerateColumns="False" IsReadOnly="True"
-                                  SelectionMode="Single" HeadersVisibility="Column"
-                                  Background="White" BorderBrush="#D5DBDB" BorderThickness="1"
-                                  RowHeaderWidth="0" GridLinesVisibility="Horizontal">
-                            <DataGrid.Columns>
-                                <DataGridTextColumn Header="房间号" Binding="{Binding RoomId}" Width="70"/>
-                                <DataGridTextColumn Header="名称" Binding="{Binding Name}" Width="*"/>
-                                <DataGridTextColumn Header="在线" Binding="{Binding OnlineCount}" Width="55"/>
-                                <DataGridTextColumn Header="总人数" Binding="{Binding TotalText}" Width="70"/>
-                                <DataGridTextColumn Header="状态" Binding="{Binding StatusText}" Width="70"/>
-                            </DataGrid.Columns>
-                        </DataGrid>
-                    </Grid>
-
-                    <!-- 服务器统计 -->
-                    <StackPanel Grid.Row="3" Orientation="Horizontal" Margin="0,8,0,8">
-                        <TextBlock Text="{Binding Server.ConnectedCountText}" Foreground="#7F8C8D"/>
-                        <TextBlock Text="{Binding Server.OnlineUserText}" Foreground="#7F8C8D" Margin="16,0,0,0"/>
-                        <TextBlock Text="{Binding Server.RoomCountText}" Foreground="#7F8C8D" Margin="16,0,0,0"/>
-                    </StackPanel>
-
-                    <!-- 日志 -->
-                    <Border Grid.Row="4" Background="White" BorderBrush="#D5DBDB" BorderThickness="1" Margin="0,0,0,0">
-                        <ListBox x:Name="LstServerLog" ItemsSource="{Binding Server.Logs}" FontFamily="Consolas" FontSize="11"
-                                 Foreground="#34495E" Background="Transparent" BorderThickness="0"
-                                 ScrollViewer.HorizontalScrollBarVisibility="Disabled"/>
-                    </Border>
-                </Grid>
+                </ScrollViewer>
             </Border>
 
-            <!-- ========== 客户端面板 ========== -->
-            <Border Grid.Column="1" Background="White"
+            <GridSplitter Grid.Column="1" Style="{StaticResource VerticalSplitterStyle}"
+                          Visibility="{Binding IsServerVisible, Converter={StaticResource BoolToVis}}"/>
+
+            <!-- ========== 中：聊天主区 ========== -->
+            <Grid Grid.Column="2" Background="{StaticResource BgBrush}"
+                  Visibility="{Binding IsClientVisible, Converter={StaticResource BoolToVis}}">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+
+                <Border Grid.Row="0" Background="White" BorderBrush="{StaticResource BorderBrush}"
+                        BorderThickness="0,0,0,1" Padding="14,11">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="&#xE81C;" FontFamily="Segoe MDL2 Assets" FontSize="14"
+                                   Foreground="{StaticResource PrimaryBrush}" VerticalAlignment="Center"/>
+                        <TextBlock Text="{Binding Client.ActiveRoomTitle}" FontWeight="SemiBold" FontSize="14"
+                                   Foreground="{StaticResource TextBrush}" Margin="8,0,0,0" VerticalAlignment="Center"/>
+                    </StackPanel>
+                </Border>
+
+                <Border Grid.Row="1" Background="#F3F7F6" Padding="14,10" Margin="0,8,0,0">
+                    <ListBox x:Name="LstMessages" ItemsSource="{Binding Client.Messages}"
+                             Background="Transparent" BorderThickness="0" Padding="4"
+                             ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                        <ListBox.ItemContainerStyle>
+                            <Style TargetType="ListBoxItem">
+                                <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+                                <Setter Property="Padding" Value="0"/>
+                                <Setter Property="Margin" Value="0"/>
+                            </Style>
+                        </ListBox.ItemContainerStyle>
+                    </ListBox>
+                </Border>
+
+                <Border Grid.Row="2" Background="White" BorderBrush="{StaticResource BorderBrush}"
+                        BorderThickness="0,1,0,0" Padding="12,10" Margin="0,8,0,0">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBox Grid.Column="0" x:Name="TxtMessage" Text="{Binding Client.InputText}"
+                                 KeyDown="TxtMessage_KeyDown" Height="34" VerticalContentAlignment="Center"/>
+                        <Button Grid.Column="1" Content="发送" Click="BtnSend_Click"
+                                Background="{StaticResource PrimaryBrush}" Height="34" Margin="8,0,0,0" Padding="20,0"/>
+                        <Button Grid.Column="2" Click="BtnSendFile_Click"
+                                Background="{StaticResource NeutralBrush}" Height="34" Margin="8,0,0,0" Padding="12,0"
+                                ToolTip="发送文件">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="&#xE723;" FontFamily="Segoe MDL2 Assets" FontSize="13" VerticalAlignment="Center"/>
+                                <TextBlock Text="文件" Margin="6,0,0,0"/>
+                            </StackPanel>
+                        </Button>
+                        <Button Grid.Column="3" Click="BtnSendImage_Click"
+                                Background="{StaticResource NeutralBrush}" Height="34" Margin="8,0,0,0" Padding="12,0"
+                                ToolTip="发送图片">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="&#xEB9F;" FontFamily="Segoe MDL2 Assets" FontSize="13" VerticalAlignment="Center"/>
+                                <TextBlock Text="图片" Margin="6,0,0,0"/>
+                            </StackPanel>
+                        </Button>
+                    </Grid>
+                </Border>
+            </Grid>
+
+            <GridSplitter Grid.Column="3" Style="{StaticResource VerticalSplitterStyle}"
+                          Visibility="{Binding IsClientVisible, Converter={StaticResource BoolToVis}}"/>
+
+            <!-- ========== 右：客户端侧栏 ========== -->
+            <Border Grid.Column="4" Width="320" MinWidth="280" MaxWidth="440" Background="White"
+                    BorderBrush="{StaticResource BorderBrush}" BorderThickness="1,0,0,0"
                     Visibility="{Binding IsClientVisible, Converter={StaticResource BoolToVis}}">
-                <Grid Margin="10">
+                <Grid Margin="12,10">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="*"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
                     </Grid.RowDefinitions>
 
-                    <!-- 连接栏 -->
-                    <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,8">
-                        <TextBlock Text="IP：" VerticalAlignment="Center"/>
-                        <TextBox x:Name="TxtServerIp" Text="{Binding Client.ServerIp}" Width="110" VerticalContentAlignment="Center"/>
-                        <TextBlock Text="端口：" VerticalAlignment="Center" Margin="8,0,4,0"/>
-                        <TextBox x:Name="TxtClientPort" Text="{Binding Client.PortText}" Width="55" VerticalContentAlignment="Center"/>
-                        <TextBlock Text="用户名：" VerticalAlignment="Center" Margin="8,0,4,0"/>
-                        <TextBox x:Name="TxtUserName" Text="{Binding Client.UserName}" Width="110" VerticalContentAlignment="Center"/>
-                        <Button Content="连接" Click="BtnConnect_Click" Background="#3498DB" Foreground="White"
-                                BorderThickness="0" Padding="14,5" Margin="10,0,0,0" Cursor="Hand"/>
-                        <Button Content="断开" Click="BtnDisconnect_Click" Background="#95A5A6" Foreground="White"
-                                BorderThickness="0" Padding="14,5" Margin="8,0,0,0" Cursor="Hand"/>
-                        <TextBlock Text="{Binding Client.StatusText}" VerticalAlignment="Center" Margin="14,0,0,0" FontWeight="Bold" Foreground="#2C3E50"/>
-                        <TextBlock Text="  ID: " VerticalAlignment="Center" Foreground="#95A5A6"/>
-                        <TextBlock Text="{Binding Client.UserId}" VerticalAlignment="Center" FontFamily="Consolas" FontSize="10" Foreground="#95A5A6"/>
-                    </StackPanel>
-
-                    <!-- 房间操作栏 -->
-                    <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,0,0,8">
-                        <TextBlock Text="加入房间号：" VerticalAlignment="Center"/>
-                        <TextBox x:Name="TxtJoinRoom" Text="{Binding Client.JoinRoomInput}" Width="90" VerticalContentAlignment="Center"/>
-                        <Button Content="加入房间" Click="BtnJoinRoom_Click" Background="#2ECC71" Foreground="White"
-                                BorderThickness="0" Padding="12,5" Margin="8,0,0,0" Cursor="Hand"/>
-                        <Button Content="退出当前房间" Click="BtnLeaveRoom_Click" Background="#E74C3C" Foreground="White"
-                                BorderThickness="0" Padding="12,5" Margin="8,0,0,0" Cursor="Hand"/>
-                        <TextBlock Text="{Binding Client.StatusDetail}" VerticalAlignment="Center" Foreground="#7F8C8D"
-                                   Margin="14,0,0,0" TextTrimming="CharacterEllipsis"/>
-                    </StackPanel>
-
-                    <!-- 主体：房间列表 | 聊天区 -->
-                    <Grid Grid.Row="2">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="230"/>
-                            <ColumnDefinition Width="*"/>
-                        </Grid.ColumnDefinitions>
-
-                        <!-- 已加入房间列表 -->
-                        <Grid Grid.Column="0" Margin="0,0,10,0">
-                            <Grid.RowDefinitions>
-                                <RowDefinition Height="*"/>
-                                <RowDefinition Height="30"/>
-                            </Grid.RowDefinitions>
-                            <Border Grid.Row="0" Background="#F7F9FA" BorderBrush="#D5DBDB" BorderThickness="1">
-                                <ListView x:Name="LstJoinedRooms" ItemsSource="{Binding Client.JoinedRooms}"
-                                          SelectionChanged="LstJoinedRooms_SelectionChanged"
-                                          Background="Transparent" BorderThickness="0">
-                                    <ListView.ItemContainerStyle>
-                                        <Style TargetType="ListViewItem">
-                                            <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
-                                        </Style>
-                                    </ListView.ItemContainerStyle>
-                                </ListView>
-                            </Border>
-                            <TextBlock Grid.Row="1" Text="点击房间切换聊天" Foreground="#BDC3C7" FontSize="10"
-                                       VerticalAlignment="Center" HorizontalAlignment="Center"/>
-                        </Grid>
-
-                        <!-- 聊天区 -->
-                        <Grid Grid.Column="1">
-                            <Grid.RowDefinitions>
-                                <RowDefinition Height="32"/>
-                                <RowDefinition Height="*"/>
-                                <RowDefinition Height="44"/>
-                            </Grid.RowDefinitions>
-
-                            <!-- 标题 -->
-                            <Border Grid.Row="0" Background="#ECF0F1" CornerRadius="3">
-                                <TextBlock Text="{Binding Client.ActiveRoomTitle}" FontWeight="Bold" Foreground="#2C3E50"
-                                           VerticalAlignment="Center" Margin="10,0"/>
-                            </Border>
-
-                            <!-- 消息区 + 用户列表 -->
-                            <Grid Grid.Row="1" Margin="0,6,0,0">
+                    <!-- 连接配置 -->
+                    <Border Grid.Row="0" Style="{StaticResource CardStyle}" Margin="0,0,0,8">
+                        <StackPanel>
+                            <TextBlock Text="连接" Style="{StaticResource SectionTitleStyle}"/>
+                            <Grid>
                                 <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="30"/>
                                     <ColumnDefinition Width="*"/>
-                                    <ColumnDefinition Width="180"/>
+                                    <ColumnDefinition Width="34"/>
+                                    <ColumnDefinition Width="60"/>
                                 </Grid.ColumnDefinitions>
-
-                                <Border Grid.Column="0" Background="#FCFDFD" BorderBrush="#D5DBDB" BorderThickness="1">
-                                    <ListBox x:Name="LstMessages" ItemsSource="{Binding Client.Messages}"
-                                             Background="Transparent" BorderThickness="0" Padding="8"
-                                             ScrollViewer.HorizontalScrollBarVisibility="Disabled"/>
-                                </Border>
-
-                                <Grid Grid.Column="1" Margin="8,0,0,0">
-                                    <Grid.RowDefinitions>
-                                        <RowDefinition Height="24"/>
-                                        <RowDefinition Height="*"/>
-                                    </Grid.RowDefinitions>
-                                    <TextBlock Grid.Row="0" Text="房间用户" FontWeight="Bold" Foreground="#2C3E50" VerticalAlignment="Center"/>
-                                    <Border Grid.Row="1" Background="#F7F9FA" BorderBrush="#D5DBDB" BorderThickness="1">
-                                        <ListBox ItemsSource="{Binding Client.Users}" Background="Transparent" BorderThickness="0" FontSize="11">
-                                            <ListBox.ItemTemplate>
-                                                <DataTemplate>
-                                                    <Border Margin="0,1" CornerRadius="3" Padding="3,1">
-                                                        <Border.Style>
-                                                            <Style TargetType="Border">
-                                                                <Setter Property="Background" Value="Transparent"/>
-                                                                <Style.Triggers>
-                                                                    <DataTrigger Binding="{Binding IsMe}" Value="True">
-                                                                        <Setter Property="Background" Value="#D6EAF8"/>
-                                                                    </DataTrigger>
-                                                                </Style.Triggers>
-                                                            </Style>
-                                                        </Border.Style>
-                                                        <StackPanel Orientation="Horizontal">
-                                                            <Ellipse Width="7" Height="7" Fill="#2ECC71" VerticalAlignment="Center"/>
-                                                            <TextBlock Text="{Binding UserName}" Margin="6,0,0,0" Foreground="#2C3E50">
-                                                                <TextBlock.Style>
-                                                                    <Style TargetType="TextBlock">
-                                                                        <Setter Property="FontWeight" Value="Normal"/>
-                                                                        <Style.Triggers>
-                                                                            <DataTrigger Binding="{Binding IsMe}" Value="True">
-                                                                                <Setter Property="FontWeight" Value="Bold"/>
-                                                                            </DataTrigger>
-                                                                        </Style.Triggers>
-                                                                    </Style>
-                                                                </TextBlock.Style>
-                                                            </TextBlock>
-                                                            <TextBlock Text="{Binding UserId}" FontSize="9" Foreground="#95A5A6" Margin="6,0,0,0"/>
-                                                            <TextBlock Text="(我)" FontSize="10" FontWeight="Bold" Foreground="#27AE60" Margin="4,0,0,0"
-                                                                       Visibility="{Binding IsMe, Converter={StaticResource BoolToVis}}"/>
-                                                        </StackPanel>
-                                                    </Border>
-                                                </DataTemplate>
-                                            </ListBox.ItemTemplate>
-                                        </ListBox>
-                                    </Border>
-                                </Grid>
+                                <TextBlock Grid.Column="0" Text="IP" VerticalAlignment="Center" Foreground="{StaticResource TextGrayBrush}"/>
+                                <TextBox Grid.Column="1" x:Name="TxtServerIp" Text="{Binding Client.ServerIp}" Margin="0,0,6,0"/>
+                                <TextBlock Grid.Column="2" Text="端口" VerticalAlignment="Center" Foreground="{StaticResource TextGrayBrush}"/>
+                                <TextBox Grid.Column="3" x:Name="TxtClientPort" Text="{Binding Client.PortText}"/>
                             </Grid>
+                            <Grid Margin="0,6,0,0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="44"/>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" Text="用户名" VerticalAlignment="Center" Foreground="{StaticResource TextGrayBrush}"/>
+                                <TextBox Grid.Column="1" x:Name="TxtUserName" Text="{Binding Client.UserName}" Margin="0,0,6,0"/>
+                                <Button Grid.Column="2" Content="连接" Click="BtnConnect_Click" Background="{StaticResource SuccessBrush}" Padding="14,5"/>
+                                <Button Grid.Column="3" Content="断开" Click="BtnDisconnect_Click" Background="{StaticResource NeutralBrush}" Padding="14,5" Margin="6,0,0,0"/>
+                            </Grid>
+                            <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
+                                <TextBlock Text="{Binding Client.StatusText}" FontWeight="SemiBold" FontSize="11"
+                                           Foreground="{StaticResource TextBrush}" VerticalAlignment="Center"/>
+                                <TextBlock Text="ID: " FontSize="10" Foreground="{StaticResource TextLightBrush}" Margin="10,0,0,0" VerticalAlignment="Center"/>
+                                <TextBlock Text="{Binding Client.UserId}" FontSize="9" FontFamily="Consolas"
+                                           Foreground="{StaticResource TextLightBrush}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
 
-                            <!-- 输入栏 -->
-                            <Border Grid.Row="2" Background="#F7F9FA" BorderBrush="#D5DBDB" BorderThickness="1" Margin="0,6,0,0" Padding="6">
-                                <Grid>
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*"/>
-                                        <ColumnDefinition Width="Auto"/>
-                                        <ColumnDefinition Width="Auto"/>
-                                        <ColumnDefinition Width="Auto"/>
-                                    </Grid.ColumnDefinitions>
-                                    <TextBox Grid.Column="0" x:Name="TxtMessage" Text="{Binding Client.InputText}"
-                                             VerticalContentAlignment="Center" KeyDown="TxtMessage_KeyDown"/>
-                                    <Button Grid.Column="1" Content="发送" Click="BtnSend_Click" Background="#3498DB" Foreground="White"
-                                            BorderThickness="0" Padding="16,5" Margin="8,0,0,0" Cursor="Hand"/>
-                                    <Button Grid.Column="2" Content="发送文件" Click="BtnSendFile_Click" Background="#F39C12" Foreground="White"
-                                            BorderThickness="0" Padding="12,5" Margin="8,0,0,0" Cursor="Hand"/>
-                                    <Button Grid.Column="3" Content="发送图片" Click="BtnSendImage_Click" Background="#8E44AD" Foreground="White"
-                                            BorderThickness="0" Padding="12,5" Margin="8,0,0,0" Cursor="Hand"/>
-                                </Grid>
-                            </Border>
+                    <!-- 房间操作 -->
+                    <Border Grid.Row="1" Style="{StaticResource CardStyle}" Margin="0,0,0,8">
+                        <StackPanel>
+                            <TextBlock Text="房间" Style="{StaticResource SectionTitleStyle}"/>
+                            <StackPanel Orientation="Horizontal">
+                                <TextBox x:Name="TxtJoinRoom" Text="{Binding Client.JoinRoomInput}" Width="86"
+                                         ToolTip="输入 4~6 位房间号加入"/>
+                                <Button Content="加入" Click="BtnJoinRoom_Click" Background="{StaticResource SuccessBrush}" Padding="12,5" Margin="6,0,0,0"/>
+                                <Button Content="退出当前" Click="BtnLeaveRoom_Click" Background="{StaticResource DangerBrush}" Padding="12,5" Margin="6,0,0,0"/>
+                            </StackPanel>
+                            <TextBlock Text="{Binding Client.StatusDetail}" FontSize="10" Foreground="{StaticResource TextGrayBrush}"
+                                       Margin="0,6,0,0" TextTrimming="CharacterEllipsis"/>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- 已加入房间 -->
+                    <Border Grid.Row="2" Style="{StaticResource CardStyle}">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="*"/>
+                            </Grid.RowDefinitions>
+                            <TextBlock Grid.Row="0" Text="已加入房间" Style="{StaticResource SectionTitleStyle}"/>
+                            <ListView Grid.Row="1" x:Name="LstJoinedRooms" ItemsSource="{Binding Client.JoinedRooms}"
+                                      SelectionChanged="LstJoinedRooms_SelectionChanged"
+                                      Background="Transparent" BorderThickness="0"/>
                         </Grid>
-                    </Grid>
+                    </Border>
+
+                    <TextBlock Grid.Row="3" Text="点击房间切换聊天" Style="{StaticResource HintTextStyle}"
+                               HorizontalAlignment="Center" Margin="0,6,0,8"/>
+
+                    <!-- 当前房间用户 -->
+                    <Border Grid.Row="4" Style="{StaticResource CardStyle}">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="*"/>
+                            </Grid.RowDefinitions>
+                            <TextBlock Grid.Row="0" Text="当前房间用户" Style="{StaticResource SectionTitleStyle}"/>
+                            <ListBox Grid.Row="1" ItemsSource="{Binding Client.Users}"
+                                     ItemTemplate="{StaticResource RoomUserItemTemplate}"
+                                     Background="Transparent" BorderThickness="0" FontSize="11"/>
+                        </Grid>
+                    </Border>
                 </Grid>
             </Border>
         </Grid>

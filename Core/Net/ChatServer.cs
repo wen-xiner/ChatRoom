@@ -12,6 +12,7 @@ using System.Threading;
 using Fleck;
 using ChatRoom.Config;
 using ChatRoom.Core.Rooms;
+using ChatRoom.Core.Storage;
 using ChatRoom.Core.Users;
 using ChatRoom.Models;
 
@@ -62,6 +63,7 @@ namespace ChatRoom.Core.Net
         public void Start()
         {
             if (IsRunning) return;
+            LoadPersistentState();
             _server = new WebSocketServer($"ws://0.0.0.0:{Port}");
             _server.Start(connection =>
             {
@@ -81,6 +83,7 @@ namespace ChatRoom.Core.Net
         public void Stop()
         {
             if (!IsRunning) return;
+            SaveState();
             try { _server?.Dispose(); } catch { }
             _server = null;
             Sessions.Clear();
@@ -88,6 +91,50 @@ namespace ChatRoom.Core.Net
             IsRunning = false;
             Log?.Invoke("服务器已停止");
             RaiseStateChanged();
+        }
+
+        /// <summary>立即持久化配置/房间/黑名单（限流值调整等场景调用）。</summary>
+        public void SaveState()
+        {
+            JsonStore.Save(AppConfig.ServerConfigPath, new ServerConfig
+            {
+                Port = Port,
+                PublicRoomHourlyLimit = PublicRoomHourlyLimit
+            });
+            var rooms = Rooms.AllRooms
+                .Where(r => !r.IsPublic)
+                .Select(r => new RoomRecord { RoomId = r.RoomId, Name = r.Name })
+                .ToList();
+            JsonStore.Save(AppConfig.RoomsConfigPath, rooms);
+            JsonStore.Save(AppConfig.BlacklistConfigPath, Blacklist.Snapshot());
+        }
+
+        private void LoadPersistentState()
+        {
+            try
+            {
+                var cfg = JsonStore.Load<ServerConfig>(AppConfig.ServerConfigPath);
+                PublicRoomHourlyLimit = cfg.PublicRoomHourlyLimit;
+
+                foreach (var r in JsonStore.Load<List<RoomRecord>>(AppConfig.RoomsConfigPath))
+                    if (r.RoomId != AppConfig.PublicRoomId)
+                        Rooms.TryCreate(r.RoomId, r.Name, out _, out _);
+
+                Blacklist.LoadFrom(JsonStore.Load<List<BlacklistItem>>(AppConfig.BlacklistConfigPath));
+
+                if (Directory.Exists(AppConfig.HistoryDirectory))
+                {
+                    foreach (var file in Directory.GetFiles(AppConfig.HistoryDirectory, "*.json"))
+                    {
+                        var roomId = Path.GetFileNameWithoutExtension(file);
+                        var room = Rooms.Get(roomId);
+                        if (room == null) continue;
+                        foreach (var m in JsonStore.Load<List<ChatMessage>>(file))
+                            room.PushRecent(m);
+                    }
+                }
+            }
+            catch { /* 状态加载失败不阻断启动 */ }
         }
 
         public void Dispose() => Stop();
@@ -102,6 +149,7 @@ namespace ChatRoom.Core.Net
                 if (m.ActiveRoomId == roomId) m.ActiveRoomId = null;
                 m.Send(WsMessage.Create(WsMessageType.RoomClosed, new { roomId }));
             }
+            SaveState();
             Log?.Invoke($"房间 {roomId} 已关闭");
             RaiseStateChanged();
             return true;
@@ -112,7 +160,66 @@ namespace ChatRoom.Core.Net
         {
             roomId = string.IsNullOrWhiteSpace(roomIdOrEmpty) ? Rooms.GenerateRandomId() : roomIdOrEmpty.Trim();
             if (!Rooms.TryCreate(roomId, name, out _, out error)) return false;
+            SaveState();
             Log?.Invoke($"已创建房间 {roomId}（{name}）");
+            RaiseStateChanged();
+            return true;
+        }
+
+        // ---------------- 模块8：踢出 / 黑名单 ----------------
+
+        /// <summary>把指定房间中的用户（按 userId 或 IP）踢出。执行后立即离开该房间。</summary>
+        public bool KickUser(string roomId, string userIdOrIp, out string error)
+        {
+            error = null;
+            var room = Rooms.Get(roomId);
+            if (room == null) { error = "房间不存在。"; return false; }
+            var target = room.Members.FirstOrDefault(m =>
+                string.Equals(m.UserId, userIdOrIp, StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(m.ClientIp, userIdOrIp, StringComparison.OrdinalIgnoreCase));
+            if (target == null) { error = $"房间 {roomId} 中未找到该用户。"; return false; }
+
+            room.RemoveMember(target);
+            target.JoinedRooms.TryRemove(roomId, out _);
+            if (target.ActiveRoomId == roomId) target.ActiveRoomId = null;
+
+            target.Send(WsMessage.Create(WsMessageType.Kick, new { roomId, reason = "你已被服务器移出房间。" }));
+            RouteToRoom(room, WsMessage.Create(WsMessageType.UserLeft, new { roomId, userId = target.UserId, sessionId = target.ConnectionId }));
+
+            Log?.Invoke($"已踢出 {target.UserName}（{target.UserId}）离开房间 {roomId}");
+            RaiseStateChanged();
+            return true;
+        }
+
+        /// <summary>把用户（按 userId 或 IP）拉黑指定房间；若当前在房间内同时踢出。其他房间不受影响。</summary>
+        public bool BanUser(string roomId, string key, string keyType, out string error)
+        {
+            error = null;
+            if (string.IsNullOrWhiteSpace(key)) { error = "标识不能为空。"; return false; }
+            if (Rooms.Get(roomId) == null) { error = "房间不存在。"; return false; }
+
+            Blacklist.Add(roomId, key, keyType);
+            // 若该用户正在房间内，一并踢出
+            var room = Rooms.Get(roomId);
+            var target = room?.Members.FirstOrDefault(m =>
+                string.Equals(m.UserId, key, StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(m.ClientIp, key, StringComparison.OrdinalIgnoreCase));
+            if (target != null)
+                KickUser(roomId, key, out _);
+
+            SaveState();
+            Log?.Invoke($"已将 {key}（{keyType}）拉黑房间 {roomId}");
+            RaiseStateChanged();
+            return true;
+        }
+
+        /// <summary>解除指定房间的黑名单。</summary>
+        public bool UnbanUser(string roomId, string key, out string error)
+        {
+            error = null;
+            if (!Blacklist.Remove(roomId, key)) { error = "黑名单中不存在该条目。"; return false; }
+            SaveState();
+            Log?.Invoke($"已解除 {key} 在房间 {roomId} 的黑名单");
             RaiseStateChanged();
             return true;
         }
@@ -294,7 +401,15 @@ namespace ChatRoom.Core.Net
                 SentTime = DateTime.Now
             };
             room.PushRecent(chat);
+            PersistHistory(room);
             RouteToRoom(room, WsMessage.Create(WsMessageType.Chat, chat));
+        }
+
+        /// <summary>把房间消息缓冲写入独立历史文件（按房间隔离）。</summary>
+        private void PersistHistory(Room room)
+        {
+            var path = Path.Combine(AppConfig.HistoryDirectory, room.RoomId + ".json");
+            JsonStore.Save(path, room.GetRecent(200));
         }
 
         /// <summary>

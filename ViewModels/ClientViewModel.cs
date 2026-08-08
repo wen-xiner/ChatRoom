@@ -10,6 +10,7 @@ using System.Windows.Media.Imaging;
 using ChatRoom.Config;
 using ChatRoom.Core.Auth;
 using ChatRoom.Core.Net;
+using ChatRoom.Core.Storage;
 using ChatRoom.Models;
 using ChatRoom.Views;
 using Microsoft.Win32;
@@ -74,9 +75,18 @@ namespace ChatRoom.ViewModels
         // 进行中的下载：fileId -> (roomId, fileName, kind, chunks)
         private readonly Dictionary<string, DownloadSession> _downloads = new Dictionary<string, DownloadSession>();
 
+        private readonly ClientConfig _clientConfig;
+        private readonly List<string> _savedRooms = new List<string>();
+
         public ClientViewModel()
         {
             IsAuthenticated = AuthService.IsAuthenticated();
+            _clientConfig = JsonStore.Load<ClientConfig>(AppConfig.ClientConfigPath);
+            _serverIp = _clientConfig.ServerIp;
+            _portText = _clientConfig.Port.ToString();
+            _userName = _clientConfig.UserName;
+            if (_clientConfig.JoinedRooms != null)
+                _savedRooms.AddRange(_clientConfig.JoinedRooms);
         }
 
         // ---------------- 连接 ----------------
@@ -130,6 +140,7 @@ namespace ChatRoom.ViewModels
             Messages.Clear();
             Users.Clear();
             ActiveRoomId = null;
+            SaveClientConfig();
             StatusDetail = "已断开连接";
         }
 
@@ -162,6 +173,9 @@ namespace ChatRoom.ViewModels
             }
             if (!IsConnected) { StatusDetail = "请先连接服务器。"; return; }
             Client.Send(WsMessage.Create(WsMessageType.LeaveRoom, new { roomId }));
+            // 主动退出后本地立即移除（服务器端已同步移除，不会回 UserLeft 给本人）
+            RemoveJoinedRoom(roomId);
+            StatusDetail = $"已退出房间 {roomId}";
         }
 
         public void LeaveCurrentRoom()
@@ -219,6 +233,8 @@ namespace ChatRoom.ViewModels
                 Messages.Clear();
                 Users.Clear();
             }
+            if (_savedRooms.Remove(roomId))
+                SaveClientConfig();
         }
 
         // ---------------- 文本 ----------------
@@ -360,12 +376,14 @@ namespace ChatRoom.ViewModels
                 case WsMessageType.HelloAck:
                     MySessionId = msg.payload["sessionId"]?.ToString();
                     StatusDetail = "服务器握手成功。";
+                    RejoinSavedRooms();
                     break;
                 case WsMessageType.Error: StatusDetail = msg.payload["reason"]?.ToString() ?? "服务器返回错误"; break;
                 case WsMessageType.JoinAck: HandleJoinAck(msg); break;
                 case WsMessageType.UserJoined: HandleUserJoined(msg); break;
                 case WsMessageType.UserLeft: HandleUserLeft(msg); break;
                 case WsMessageType.RoomClosed: HandleRoomClosed(msg); break;
+                case WsMessageType.Kick: HandleKick(msg); break;
                 case WsMessageType.RoomNotify:
                     var rn = msg.payload["roomId"]?.ToString();
                     if (rn != null && rn != ActiveRoomId)
@@ -388,6 +406,9 @@ namespace ChatRoom.ViewModels
             if (!(bool)(msg.payload["ok"] ?? false))
             {
                 StatusDetail = $"加入房间 {roomId} 失败：{msg.payload["reason"]}";
+                // 自动重连的已存房间若已不存在，从保存列表移除，避免残留
+                if (_savedRooms.Remove(roomId))
+                    SaveClientConfig();
                 return;
             }
 
@@ -415,6 +436,12 @@ namespace ChatRoom.ViewModels
                 item.Name = name;
                 item.OnlineCount = users.Count;
                 item.Available = true;
+            }
+
+            if (!_savedRooms.Contains(roomId))
+            {
+                _savedRooms.Add(roomId);
+                SaveClientConfig();
             }
 
             SetActiveRoom(roomId);
@@ -493,6 +520,17 @@ namespace ChatRoom.ViewModels
                 Users.Clear();
             }
             StatusDetail = $"房间 {roomId} 已被关闭";
+        }
+
+        /// <summary>被服务器踢出房间：本地立即移除。</summary>
+        private void HandleKick(WsMessage msg)
+        {
+            var roomId = msg.payload["roomId"]?.ToString();
+            var reason = msg.payload["reason"]?.ToString();
+            if (string.IsNullOrEmpty(roomId)) return;
+            AppendMessage(new SystemMessageItem { Text = $"你已被移出房间 {roomId}：{reason ?? "被服务器踢出"}" });
+            RemoveJoinedRoom(roomId);
+            StatusDetail = $"你已被移出房间 {roomId}";
         }
 
         private void HandleChat(WsMessage msg)
@@ -598,6 +636,22 @@ namespace ChatRoom.ViewModels
         }
 
         private void AppendMessage(object item) => Messages.Add(item);
+
+        /// <summary>握手成功后自动重连上次加入的房间（房间不存在则服务端返回失败）。</summary>
+        private void RejoinSavedRooms()
+        {
+            foreach (var roomId in _savedRooms.ToList())
+                Client?.Send(WsMessage.Create(WsMessageType.JoinRoom, new { roomId }));
+        }
+
+        private void SaveClientConfig()
+        {
+            _clientConfig.ServerIp = ServerIp;
+            _clientConfig.Port = int.TryParse(PortText.Trim(), out var p) ? p : AppConfig.DefaultPort;
+            _clientConfig.UserName = UserName;
+            _clientConfig.JoinedRooms = _savedRooms.ToList();
+            JsonStore.Save(AppConfig.ClientConfigPath, _clientConfig);
+        }
 
         private ChatMessageItem ToChatItem(ChatMessage chat)
             => new ChatMessageItem { Data = chat, IsMine = chat.SenderSessionId == MySessionId };

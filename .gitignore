@@ -19,8 +19,10 @@ packages/
 Data/
 *.db
 
-# 本地规划文档（隔离，不上传）
+# 本地规划/开发记录文档（隔离，不上传）
 plan.md
+day1.md
+day2.md
 
 # OS files
 Thumbs.db

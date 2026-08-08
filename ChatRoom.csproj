@@ -109,6 +109,8 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Config\AppConfig.cs" />
+    <Compile Include="Config\ConfigModels.cs" />
+    <Compile Include="Core\Storage\JsonStore.cs" />
     <Compile Include="Core\Auth\AuthAlgorithm.cs" />
     <Compile Include="Core\Auth\AuthService.cs" />
     <Compile Include="Core\Auth\MachineFingerprint.cs" />
@@ -122,6 +124,7 @@
     <Compile Include="Core\Rooms\RoomManager.cs" />
     <Compile Include="Core\Users\ServerSession.cs" />
     <Compile Include="Core\Users\SessionManager.cs" />
+    <Compile Include="Models\BlacklistItem.cs" />
     <Compile Include="Models\ChatMessage.cs" />
     <Compile Include="Models\FileMessage.cs" />
     <Compile Include="Models\ImageMessage.cs" />
@@ -136,6 +139,7 @@
     <Compile Include="ViewModels\ObservableObject.cs" />
     <Compile Include="ViewModels\RelayCommand.cs" />
     <Compile Include="ViewModels\RoomListItem.cs" />
+    <Compile Include="ViewModels\ServerUserItem.cs" />
     <Compile Include="ViewModels\ServerViewModel.cs" />
     <Compile Include="ViewModels\SystemMessageItem.cs" />
     <Compile Include="ViewModels\UiHelper.cs" />
@@ -151,6 +155,7 @@
   <ItemGroup>
     <None Include="App.config" />
     <None Include="packages.config" />
+    <Resource Include="Styles.xaml" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
 </Project>

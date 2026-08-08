@@ -32,6 +32,13 @@ namespace ChatRoom.Config
         public static readonly string ConfigDirectory =
             Path.Combine(DataDirectory, "Config");
 
+        // ---- JSON 持久化文件路径 ----
+        public static readonly string ServerConfigPath = Path.Combine(ConfigDirectory, "server-config.json");
+        public static readonly string RoomsConfigPath = Path.Combine(ConfigDirectory, "rooms.json");
+        public static readonly string BlacklistConfigPath = Path.Combine(ConfigDirectory, "blacklist.json");
+        public static readonly string ClientConfigPath = Path.Combine(ConfigDirectory, "client-config.json");
+        public static readonly string UiConfigPath = Path.Combine(ConfigDirectory, "ui-config.json");
+
         // ---- 注册表 ----
         /// <summary>注册表根路径（HKCU）。</summary>
         public const string RegistryRoot = @"Software\ChatRoom";

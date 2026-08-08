@@ -22,6 +22,8 @@ namespace ChatRoom.Core.Net
         UserLeft,
         /// <summary>服务器广播：房间被关闭，携带 roomId。</summary>
         RoomClosed,
+        /// <summary>服务器→客户端：被踢出房间，携带 roomId/reason。</summary>
+        Kick,
         /// <summary>服务器→客户端：已加入但非当前房间有新动态，仅携带 roomId（不含内容）。</summary>
         RoomNotify,
         /// <summary>客户端→服务器：切换当前查看房间，携带 roomId。</summary>

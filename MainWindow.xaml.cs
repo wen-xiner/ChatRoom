@@ -3,6 +3,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using ChatRoom.Core.Auth;
+using ChatRoom.Core.Storage;
 using ChatRoom.ViewModels;
 
 namespace ChatRoom
@@ -25,7 +26,43 @@ namespace ChatRoom
 
         private void MainWindow_Loaded(object sender, RoutedEventArgs e)
         {
+            ApplyUiConfig();
             RefreshAuthStatus();
+        }
+
+        /// <summary>加载并应用窗口大小与表格列宽（JSON 持久化）。</summary>
+        private void ApplyUiConfig()
+        {
+            var ui = JsonStore.Load<UiConfig>(ChatRoom.Config.AppConfig.UiConfigPath);
+            if (ui.WindowWidth >= MinWidth && ui.WindowHeight >= MinHeight)
+            {
+                Width = ui.WindowWidth;
+                Height = ui.WindowHeight;
+            }
+            // 固定列夹紧到合理范围；名称列始终弹性，避免旧配置/用户拖宽导致列总宽超过面板
+            ColRoomId.Width = Clamp(ui.ColRoomId, 48, 80);
+            ColName.Width = new DataGridLength(1, DataGridLengthUnitType.Star);
+            ColOnline.Width = Clamp(ui.ColOnline, 36, 50);
+            ColTotal.Width = Clamp(ui.ColTotal, 40, 60);
+            ColStatus.Width = Clamp(ui.ColStatus, 40, 60);
+        }
+
+        private static double Clamp(double value, double min, double max)
+            => value < min ? min : (value > max ? max : value);
+
+        private void SaveUiConfig()
+        {
+            var ui = new UiConfig
+            {
+                WindowWidth = ActualWidth,
+                WindowHeight = ActualHeight,
+                ColRoomId = ColRoomId.ActualWidth,
+                ColName = ColName.ActualWidth,
+                ColOnline = ColOnline.ActualWidth,
+                ColTotal = ColTotal.ActualWidth,
+                ColStatus = ColStatus.ActualWidth
+            };
+            JsonStore.Save(ChatRoom.Config.AppConfig.UiConfigPath, ui);
         }
 
         private void RefreshAuthStatus()
@@ -120,10 +157,33 @@ namespace ChatRoom
                 LstMessages.ScrollIntoView(LstMessages.Items[LstMessages.Items.Count - 1]);
         }
 
+        // ---------------- 服务器房间详情：踢人 / 黑名单 ----------------
+
+        private void LstRoomMembers_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            _vm.Server.SelectedUser = LstRoomMembers.SelectedItem as ServerUserItem;
+        }
+
+        private void LstRoomBlacklist_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            _vm.Server.SelectedBlacklist = LstRoomBlacklist.SelectedItem as ChatRoom.Models.BlacklistItem;
+        }
+
+        private void BtnKick_Click(object sender, RoutedEventArgs e) => _vm.Server.KickSelectedUser();
+
+        private void BtnBanId_Click(object sender, RoutedEventArgs e) => _vm.Server.BanSelectedById();
+
+        private void BtnBanIp_Click(object sender, RoutedEventArgs e) => _vm.Server.BanSelectedByIp();
+
+        private void BtnUnban_Click(object sender, RoutedEventArgs e) => _vm.Server.UnbanSelected();
+
+        private void BtnSaveLimit_Click(object sender, RoutedEventArgs e) => _vm.Server.SaveLimit();
+
         // ---------------- 关闭时清理 ----------------
 
         protected override void OnClosed(System.EventArgs e)
         {
+            SaveUiConfig();
             _vm.Server.Stop();
             _vm.Client.Disconnect();
             base.OnClosed(e);
