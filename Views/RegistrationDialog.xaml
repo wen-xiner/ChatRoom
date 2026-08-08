@@ -1,0 +1,39 @@
+<Window x:Class="ChatRoom.Views.RegistrationDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="软件注册" Width="480" SizeToContent="Height"
+        WindowStartupLocation="CenterOwner" ResizeMode="NoResize"
+        FontFamily="Microsoft YaHei UI" FontSize="12">
+    <Grid Margin="18">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <TextBlock Grid.Row="0" Text="本机注册码（复制后粘贴到注册机生成认证码）："
+                   Foreground="#303030" Margin="0,0,0,6"/>
+        <TextBox Grid.Row="1" x:Name="TxtRegCode" IsReadOnly="True" FontFamily="Consolas"
+                 Background="#F0F2F5" Padding="4" Margin="0,0,0,12"/>
+
+        <TextBlock Grid.Row="2" Text="认证码："
+                   Foreground="#303030" Margin="0,0,0,6"/>
+        <TextBox Grid.Row="3" x:Name="TxtAuthCode" FontFamily="Consolas"
+                 Padding="4" Margin="0,0,0,12"/>
+
+        <StackPanel Grid.Row="4" Orientation="Horizontal" HorizontalAlignment="Right">
+            <Button x:Name="BtnRegister" Content="注  册" Width="88" Height="30" Margin="0,0,10,0"
+                    Click="BtnRegister_Click"
+                    Background="#3498DB" Foreground="White" BorderThickness="0" Cursor="Hand"/>
+            <Button x:Name="BtnCancel" Content="取消" Width="72" Height="30"
+                    Click="BtnCancel_Click"
+                    Background="#95A5A6" Foreground="White" BorderThickness="0" Cursor="Hand"/>
+        </StackPanel>
+
+        <TextBlock Grid.Row="5" x:Name="TxtResult" Foreground="#E74C3C" TextWrapping="Wrap"
+                   Margin="0,10,0,0" MinHeight="20"/>
+    </Grid>
+</Window>

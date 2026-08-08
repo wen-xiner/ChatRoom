@@ -1,0 +1,27 @@
+# Build output
+bin/
+obj/
+
+# Inno Setup 打包产物（源码 .iss 保留，生成的安装包不提交）
+InnoSetup/Output/
+
+# Visual Studio
+.vs/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
+# NuGet packages
+packages/
+
+# 运行期数据（JSON / 上传文件，不提交）
+Data/
+*.db
+
+# 本地规划文档（隔离，不上传）
+plan.md
+
+# OS files
+Thumbs.db
+Desktop.ini
