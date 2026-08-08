@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using ChatRoom.Config;
 
@@ -8,6 +9,26 @@ namespace ChatRoom.Core.Storage
     {
         public int Port { get; set; } = AppConfig.DefaultPort;
         public int PublicRoomHourlyLimit { get; set; } = AppConfig.DefaultPublicRoomHourlyLimit;
+        /// <summary>文件/图片存储目录；空 = 默认 Data\Files。</summary>
+        public string FileStoragePath { get; set; } = "";
+    }
+
+    /// <summary>用户记录（users.json）：连接过/见过的用户。</summary>
+    public class UserRecord
+    {
+        public string UserId { get; set; }
+        public string UserName { get; set; }
+        public string LastIp { get; set; }
+        public DateTime FirstSeen { get; set; }
+        public DateTime LastSeen { get; set; }
+    }
+
+    /// <summary>房间+用户列表（room-users.json）：各房间当前成员快照。</summary>
+    public class RoomUsersRecord
+    {
+        public string RoomId { get; set; }
+        public string RoomName { get; set; }
+        public List<UserRecord> Users { get; set; } = new List<UserRecord>();
     }
 
     /// <summary>服务器持久化的房间记录（非公共房，重启后重建）。</summary>

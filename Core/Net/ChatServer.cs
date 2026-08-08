@@ -36,6 +36,12 @@ namespace ChatRoom.Core.Net
         public SessionManager Sessions { get; } = new SessionManager();
         public BlacklistStore Blacklist { get; } = new BlacklistStore();
 
+        /// <summary>文件/图片存储目录（server-config.json 可配，空则默认 Data\Files）。</summary>
+        public string FileStorageDirectory { get; private set; } = AppConfig.FileStorageDirectory;
+
+        /// <summary>连接过/见过的用户（userId → 记录）。</summary>
+        public IReadOnlyCollection<UserRecord> KnownUsers => _users.Values.ToList();
+
         /// <summary>日志。</summary>
         public event Action<string> Log;
         /// <summary>状态变化（房间/在线人数等），UI 刷新用。</summary>
@@ -46,6 +52,9 @@ namespace ChatRoom.Core.Net
 
         private readonly ConcurrentDictionary<string, PendingUpload> _pendingUploads =
             new ConcurrentDictionary<string, PendingUpload>();
+
+        private readonly ConcurrentDictionary<string, UserRecord> _users =
+            new ConcurrentDictionary<string, UserRecord>(StringComparer.OrdinalIgnoreCase);
 
         // 0000 发言限流：userId -> 该小时内的发言时间戳
         private readonly object _limitLock = new object();
@@ -93,19 +102,38 @@ namespace ChatRoom.Core.Net
             RaiseStateChanged();
         }
 
-        /// <summary>立即持久化配置/房间/黑名单（限流值调整等场景调用）。</summary>
+        /// <summary>立即持久化配置/房间/用户/黑名单（限流值调整等场景调用）。</summary>
         public void SaveState()
         {
             JsonStore.Save(AppConfig.ServerConfigPath, new ServerConfig
             {
                 Port = Port,
-                PublicRoomHourlyLimit = PublicRoomHourlyLimit
+                PublicRoomHourlyLimit = PublicRoomHourlyLimit,
+                FileStoragePath = FileStorageDirectory
             });
             var rooms = Rooms.AllRooms
                 .Where(r => !r.IsPublic)
                 .Select(r => new RoomRecord { RoomId = r.RoomId, Name = r.Name })
                 .ToList();
             JsonStore.Save(AppConfig.RoomsConfigPath, rooms);
+            JsonStore.Save(AppConfig.UsersConfigPath, _users.Values.OrderBy(u => u.UserId).ToList());
+            var roomUsers = Rooms.AllRooms
+                .Select(r => new RoomUsersRecord
+                {
+                    RoomId = r.RoomId,
+                    RoomName = r.Name,
+                    Users = r.Members
+                        .Select(m => new UserRecord
+                        {
+                            UserId = m.UserId,
+                            UserName = m.UserName,
+                            LastIp = m.ClientIp,
+                            LastSeen = DateTime.Now
+                        })
+                        .ToList()
+                })
+                .ToList();
+            JsonStore.Save(AppConfig.RoomUsersConfigPath, roomUsers);
             JsonStore.Save(AppConfig.BlacklistConfigPath, Blacklist.Snapshot());
         }
 
@@ -115,10 +143,21 @@ namespace ChatRoom.Core.Net
             {
                 var cfg = JsonStore.Load<ServerConfig>(AppConfig.ServerConfigPath);
                 PublicRoomHourlyLimit = cfg.PublicRoomHourlyLimit;
+                FileStorageDirectory = string.IsNullOrWhiteSpace(cfg.FileStoragePath)
+                    ? AppConfig.FileStorageDirectory
+                    : cfg.FileStoragePath;
+                AppConfig.EnsureDirectory(FileStorageDirectory);
 
                 foreach (var r in JsonStore.Load<List<RoomRecord>>(AppConfig.RoomsConfigPath))
                     if (r.RoomId != AppConfig.PublicRoomId)
                         Rooms.TryCreate(r.RoomId, r.Name, out _, out _);
+
+                foreach (var u in JsonStore.Load<List<UserRecord>>(AppConfig.UsersConfigPath))
+                    if (!string.IsNullOrWhiteSpace(u.UserId))
+                        _users[u.UserId] = u;
+
+                // 加载房间+用户列表（校验文件可读，成员随连接实时变化）
+                JsonStore.Load<List<RoomUsersRecord>>(AppConfig.RoomUsersConfigPath);
 
                 Blacklist.LoadFrom(JsonStore.Load<List<BlacklistItem>>(AppConfig.BlacklistConfigPath));
 
@@ -244,6 +283,21 @@ namespace ChatRoom.Core.Net
             }
         }
 
+        /// <summary>记录/更新用户（users.json 持久化）。</summary>
+        private void RecordUser(ServerSession s)
+        {
+            var now = DateTime.Now;
+            _users.AddOrUpdate(s.UserId,
+                _ => new UserRecord { UserId = s.UserId, UserName = s.UserName, LastIp = s.ClientIp, FirstSeen = now, LastSeen = now },
+                (_, old) =>
+                {
+                    old.UserName = s.UserName;
+                    old.LastIp = s.ClientIp;
+                    old.LastSeen = now;
+                    return old;
+                });
+        }
+
         private void OnClosed(ServerSession s)
         {
             LeaveAllRooms(s);
@@ -274,6 +328,7 @@ namespace ChatRoom.Core.Net
             s.UserId = userId;
             s.UserName = string.IsNullOrWhiteSpace(userName) ? userId.Substring(0, 4) : userName.Trim();
             s.Registered = true;
+            RecordUser(s);
             // 下发 sessionId：客户端用它区分"本人/他人"（同机多实例共享 UserId）
             s.Send(WsMessage.Create(WsMessageType.HelloAck, new { userId = s.UserId, sessionId = s.ConnectionId }));
             Log?.Invoke($"客户端接入: {s.UserName} ({s.UserId}) @ {s.ClientIp}");
@@ -481,7 +536,7 @@ namespace ChatRoom.Core.Net
         {
             try
             {
-                var fileDir = Path.Combine(AppConfig.FileStorageDirectory, up.RoomId, up.FileId);
+                var fileDir = Path.Combine(FileStorageDirectory, up.RoomId, up.FileId);
                 AppConfig.EnsureDirectory(fileDir);
                 var originalPath = Path.Combine(fileDir, up.StoredName);
                 var bytes = up.Combine();
@@ -536,7 +591,7 @@ namespace ChatRoom.Core.Net
             if (string.IsNullOrWhiteSpace(roomId) || string.IsNullOrWhiteSpace(fileId)) return;
             if (!s.JoinedRooms.ContainsKey(roomId)) return; // 隔离：只能下载已加入房间的文件
 
-            var fileDir = Path.Combine(AppConfig.FileStorageDirectory, roomId, fileId);
+            var fileDir = Path.Combine(FileStorageDirectory, roomId, fileId);
             if (!Directory.Exists(fileDir)) return;
 
             // 返回原文件（thumb.jpg 是服务端生成的缩略图，不属于用户文件）

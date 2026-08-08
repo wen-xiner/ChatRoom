@@ -35,6 +35,8 @@ namespace ChatRoom.Config
         // ---- JSON 持久化文件路径 ----
         public static readonly string ServerConfigPath = Path.Combine(ConfigDirectory, "server-config.json");
         public static readonly string RoomsConfigPath = Path.Combine(ConfigDirectory, "rooms.json");
+        public static readonly string UsersConfigPath = Path.Combine(ConfigDirectory, "users.json");
+        public static readonly string RoomUsersConfigPath = Path.Combine(ConfigDirectory, "room-users.json");
         public static readonly string BlacklistConfigPath = Path.Combine(ConfigDirectory, "blacklist.json");
         public static readonly string ClientConfigPath = Path.Combine(ConfigDirectory, "client-config.json");
         public static readonly string UiConfigPath = Path.Combine(ConfigDirectory, "ui-config.json");
