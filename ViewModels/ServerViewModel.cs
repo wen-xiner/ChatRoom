@@ -1,6 +1,7 @@
 using System;
 using System.Collections.ObjectModel;
 using System.Linq;
+using System.Windows;
 using ChatRoom.Config;
 using ChatRoom.Core.Net;
 using ChatRoom.Core.Storage;
@@ -51,7 +52,7 @@ namespace ChatRoom.ViewModels
 
         public string ConnectedCountText => $"连接 {Server?.Sessions.ConnectionCount ?? 0}";
         public string OnlineUserText => $"在线用户 {Server?.Sessions.OnlineUserCount ?? 0}";
-        public string RoomCountText => $"房间 {Server?.Rooms.Count ?? 0}";
+        public string RoomCountText => $"房间 {(IsRunning ? Server?.Rooms.Count ?? 0 : 0)}";
 
         // ---------------- 操作 ----------------
 
@@ -94,6 +95,9 @@ namespace ChatRoom.ViewModels
             else
             {
                 AddLog(error);
+                // 创建失败（房间号已存在/格式不符等）弹窗提示，居中于主窗口（服务器界面）
+                MessageBox.Show(Application.Current?.MainWindow, error, "创建房间失败",
+                    MessageBoxButton.OK, MessageBoxImage.Warning);
             }
             RefreshAll();
         }
@@ -206,7 +210,8 @@ namespace ChatRoom.ViewModels
         {
             var keepId = SelectedRoom?.RoomId;
             Rooms.Clear();
-            if (Server != null)
+            // 服务器停止后不再显示任何房间（房间已不对外服务），避免列表残留
+            if (Server != null && IsRunning)
             {
                 foreach (var r in Server.Rooms.AllRooms.OrderBy(x => x.RoomId))
                 {

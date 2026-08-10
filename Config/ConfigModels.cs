@@ -44,7 +44,6 @@ namespace ChatRoom.Core.Storage
         public string ServerIp { get; set; } = "127.0.0.1";
         public int Port { get; set; } = AppConfig.DefaultPort;
         public string UserName { get; set; } = "";
-        public List<string> JoinedRooms { get; set; } = new List<string>();
     }
 
     /// <summary>UI 配置：窗口大小、表格列宽。</summary>

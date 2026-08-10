@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Collections.Generic;
 using System.Linq;
 
 namespace ChatRoom.Core.Users
@@ -17,6 +18,9 @@ namespace ChatRoom.Core.Users
 
         public ServerSession GetByConnectionId(string connectionId)
             => _byConnection.TryGetValue(connectionId, out var s) ? s : null;
+
+        /// <summary>当前全部会话快照（停服时逐个关闭连接；遍历不受并发增删影响）。</summary>
+        public List<ServerSession> Snapshot() => _byConnection.Values.ToList();
 
         public int ConnectionCount => _byConnection.Count;
 

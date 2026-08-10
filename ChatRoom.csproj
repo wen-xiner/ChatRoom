@@ -127,6 +127,7 @@
     <Compile Include="Models\BlacklistItem.cs" />
     <Compile Include="Models\ChatMessage.cs" />
     <Compile Include="Models\FileMessage.cs" />
+    <Compile Include="Models\HistoryMessage.cs" />
     <Compile Include="Models\ImageMessage.cs" />
     <Compile Include="Models\UserInfo.cs" />
     <Compile Include="ViewModels\ChatMessageItem.cs" />

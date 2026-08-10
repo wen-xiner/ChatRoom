@@ -76,6 +76,12 @@ namespace ChatRoom.Config
         /// <summary>加入房间时拉取的历史消息条数。</summary>
         public const int HistoryCountOnJoin = 10;
 
+        /// <summary>历史消息每房间保留条数（内存缓冲与历史文件一致）。</summary>
+        public const int HistoryKeepCount = 200;
+
+        /// <summary>向上滚动加载更早历史时每页条数。</summary>
+        public const int HistoryPageSize = 10;
+
         /// <summary>图片缩略图边长（px）。</summary>
         public const int ImageThumbnailSize = 120;
 

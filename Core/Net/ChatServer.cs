@@ -10,6 +10,9 @@ using System.Net.NetworkInformation;
 using System.Net.Sockets;
 using System.Threading;
 using Fleck;
+using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
+using Newtonsoft.Json.Serialization;
 using ChatRoom.Config;
 using ChatRoom.Core.Rooms;
 using ChatRoom.Core.Storage;
@@ -49,6 +52,13 @@ namespace ChatRoom.Core.Net
 
         private WebSocketServer _server;
         private const int ChunkSize = 256 * 1024; // 每帧 256KB
+
+        /// <summary>历史消息负载序列化：与协议一致用 camelCase，保证下发后客户端字段名匹配。</summary>
+        private static readonly JsonSerializer CamelCaseSerializer = JsonSerializer.Create(new JsonSerializerSettings
+        {
+            ContractResolver = new CamelCasePropertyNamesContractResolver(),
+            NullValueHandling = NullValueHandling.Ignore
+        });
 
         private readonly ConcurrentDictionary<string, PendingUpload> _pendingUploads =
             new ConcurrentDictionary<string, PendingUpload>();
@@ -93,6 +103,12 @@ namespace ChatRoom.Core.Net
         {
             if (!IsRunning) return;
             SaveState();
+            // 主动关闭所有客户端连接：Fleck.Dispose 只关闭监听 socket，已建立的连接不会被断开，
+            // 否则客户端仍显示"已连接"，且消息收发继续被处理。
+            foreach (var s in Sessions.Snapshot())
+            {
+                try { s.Connection.Close(); } catch { }
+            }
             try { _server?.Dispose(); } catch { }
             _server = null;
             Sessions.Clear();
@@ -168,8 +184,11 @@ namespace ChatRoom.Core.Net
                         var roomId = Path.GetFileNameWithoutExtension(file);
                         var room = Rooms.Get(roomId);
                         if (room == null) continue;
-                        foreach (var m in JsonStore.Load<List<ChatMessage>>(file))
+                        foreach (var m in JsonStore.Load<List<HistoryMessage>>(file))
+                        {
+                            if (m == null || string.IsNullOrEmpty(m.Kind) || m.Payload == null) continue;
                             room.PushRecent(m);
+                        }
                     }
                 }
             }
@@ -280,6 +299,7 @@ namespace ChatRoom.Core.Net
                 case WsMessageType.UploadStart: HandleUploadStart(s, msg); break;
                 case WsMessageType.FileChunk: HandleFileChunk(s, msg); break;
                 case WsMessageType.FileRequest: HandleFileRequest(s, msg); break;
+                case WsMessageType.HistoryRequest: HandleHistoryRequest(s, msg); break;
             }
         }
 
@@ -374,6 +394,7 @@ namespace ChatRoom.Core.Net
                 })
                 .ToList();
             var history = room.GetRecent(AppConfig.HistoryCountOnJoin);
+            FillHistoryThumbs(history); // 图片历史补缩略图（历史文件不存 base64，此处从磁盘生成）
 
             s.Send(WsMessage.Create(WsMessageType.JoinAck, new { roomId, ok = true, name = room.Name, users, history }));
 
@@ -455,7 +476,7 @@ namespace ChatRoom.Core.Net
                 Content = content.Trim(),
                 SentTime = DateTime.Now
             };
-            room.PushRecent(chat);
+            room.PushRecent(ToHistory("chat", chat));
             PersistHistory(room);
             RouteToRoom(room, WsMessage.Create(WsMessageType.Chat, chat));
         }
@@ -464,7 +485,7 @@ namespace ChatRoom.Core.Net
         private void PersistHistory(Room room)
         {
             var path = Path.Combine(AppConfig.HistoryDirectory, room.RoomId + ".json");
-            JsonStore.Save(path, room.GetRecent(200));
+            JsonStore.Save(path, room.GetRecent(AppConfig.HistoryKeepCount));
         }
 
         /// <summary>
@@ -542,12 +563,13 @@ namespace ChatRoom.Core.Net
                 var bytes = up.Combine();
                 File.WriteAllBytes(originalPath, bytes);
 
+                var room = Rooms.Get(up.RoomId);
                 if (up.IsImage)
                 {
                     var thumbPath = Path.Combine(fileDir, "thumb.jpg");
                     var thumbBytes = CreateThumbnail(originalPath, thumbPath);
                     var size = GetImageSize(originalPath);
-                    RouteToRoom(Rooms.Get(up.RoomId), WsMessage.Create(WsMessageType.ImageMeta, new ImageMessage
+                    var imageMsg = new ImageMessage
                     {
                         RoomId = up.RoomId,
                         SenderUserId = up.SenderUserId,
@@ -559,11 +581,15 @@ namespace ChatRoom.Core.Net
                         Width = size.Item1,
                         Height = size.Item2,
                         SentTime = DateTime.Now
-                    }));
+                    };
+                    RouteToRoom(room, WsMessage.Create(WsMessageType.ImageMeta, imageMsg));
+                    // 历史不存缩略图（避免历史文件膨胀），下发时由服务端从磁盘重新生成
+                    imageMsg.ThumbBase64 = null;
+                    room.PushRecent(ToHistory("image", imageMsg));
                 }
                 else
                 {
-                    RouteToRoom(Rooms.Get(up.RoomId), WsMessage.Create(WsMessageType.FileMeta, new FileMessage
+                    var fileMsg = new FileMessage
                     {
                         RoomId = up.RoomId,
                         SenderUserId = up.SenderUserId,
@@ -573,8 +599,11 @@ namespace ChatRoom.Core.Net
                         FileName = up.DisplayName,
                         FileSize = bytes.Length,
                         SentTime = DateTime.Now
-                    }));
+                    };
+                    RouteToRoom(room, WsMessage.Create(WsMessageType.FileMeta, fileMsg));
+                    room.PushRecent(ToHistory("file", fileMsg));
                 }
+                if (room != null) PersistHistory(room);
                 Log?.Invoke($"{up.SenderName} 上传了 {(up.IsImage ? "图片" : "文件")} {up.DisplayName} 到房间 {up.RoomId}");
             }
             catch (Exception ex)
@@ -621,6 +650,73 @@ namespace ChatRoom.Core.Net
                     dataBase64 = Convert.ToBase64String(part)
                 }));
             }
+        }
+
+        // ---------------- 历史消息：统一载体 / 分页加载 ----------------
+
+        /// <summary>把消息模型包装成历史统一载体（camelCase 负载，与协议字段一致）。</summary>
+        private static HistoryMessage ToHistory(string kind, object msg)
+            => new HistoryMessage { Kind = kind, Payload = JObject.FromObject(msg, CamelCaseSerializer) };
+
+        /// <summary>取历史消息的发送时间（负载缺失时返回最小值）。</summary>
+        private static DateTime GetSentTime(HistoryMessage m)
+        {
+            var raw = m?.Payload?["sentTime"]?.ToString();
+            return DateTime.TryParse(raw, out var t) ? t : DateTime.MinValue;
+        }
+
+        /// <summary>从历史文件读取该房间全部持久化消息。</summary>
+        private List<HistoryMessage> LoadHistoryFromFile(Room room)
+        {
+            var path = Path.Combine(AppConfig.HistoryDirectory, room.RoomId + ".json");
+            if (!File.Exists(path)) return new List<HistoryMessage>();
+            return JsonStore.Load<List<HistoryMessage>>(path);
+        }
+
+        /// <summary>
+        /// 给历史中的图片消息补缩略图：历史文件不存 base64，下发时从磁盘 thumb.jpg 重新生成。
+        /// 在副本上填充，不污染内存中的历史（避免缩略图被再次写入历史文件）。
+        /// </summary>
+        private void FillHistoryThumbs(List<HistoryMessage> history)
+        {
+            for (var i = 0; i < history.Count; i++)
+            {
+                var h = history[i];
+                if (h.Kind != "image" || h.Payload == null) continue;
+                var roomId = h.Payload["roomId"]?.ToString();
+                var fileId = h.Payload["fileId"]?.ToString();
+                if (string.IsNullOrEmpty(fileId)) continue;
+                var thumbPath = Path.Combine(FileStorageDirectory, roomId ?? "", fileId, "thumb.jpg");
+                if (!File.Exists(thumbPath)) continue;
+                try
+                {
+                    var clone = (JObject)h.Payload.DeepClone();
+                    clone["thumbBase64"] = Convert.ToBase64String(File.ReadAllBytes(thumbPath));
+                    history[i] = new HistoryMessage { Kind = h.Kind, Payload = clone };
+                }
+                catch { /* 缩略图读取失败则保持占位图 */ }
+            }
+        }
+
+        /// <summary>客户端向上滚动请求更早历史：按时间游标（beforeTime）分页返回。</summary>
+        private void HandleHistoryRequest(ServerSession s, WsMessage msg)
+        {
+            var roomId = msg.payload["roomId"]?.ToString();
+            if (string.IsNullOrWhiteSpace(roomId) || !s.JoinedRooms.ContainsKey(roomId)) return;
+            var room = Rooms.Get(roomId);
+            if (room == null) return;
+
+            var beforeRaw = msg.payload["beforeTime"]?.ToString();
+            var before = DateTime.TryParse(beforeRaw, out var bt) ? bt : DateTime.MaxValue;
+
+            var older = LoadHistoryFromFile(room)
+                .Where(m => GetSentTime(m) < before)
+                .OrderByDescending(GetSentTime)
+                .Take(AppConfig.HistoryPageSize)
+                .OrderBy(GetSentTime)
+                .ToList();
+            FillHistoryThumbs(older);
+            s.Send(WsMessage.Create(WsMessageType.HistoryAck, new { roomId, messages = older }));
         }
 
         // ---------------- 0000 发言限流 ----------------

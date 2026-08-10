@@ -43,5 +43,9 @@ namespace ChatRoom.Core.Net
         FileRequest,
         /// <summary>服务器→客户端：文件数据块（下载）。</summary>
         FileData,
+        /// <summary>客户端→服务器：请求更早历史（向上滚动加载），携带 roomId/beforeTime。</summary>
+        HistoryRequest,
+        /// <summary>服务器→客户端：更早历史消息，携带 roomId/messages。</summary>
+        HistoryAck,
     }
 }

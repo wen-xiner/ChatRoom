@@ -1,7 +1,9 @@
+using System;
 using System.Collections.Specialized;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using System.Windows.Media;
 using ChatRoom.Core.Auth;
 using ChatRoom.Core.Storage;
 using ChatRoom.ViewModels;
@@ -153,8 +155,64 @@ namespace ChatRoom
 
         private void Messages_CollectionChanged(object sender, NotifyCollectionChangedEventArgs e)
         {
-            if (e.Action == NotifyCollectionChangedAction.Add && LstMessages.Items.Count > 0)
-                LstMessages.ScrollIntoView(LstMessages.Items[LstMessages.Items.Count - 1]);
+            if (e.Action == NotifyCollectionChangedAction.Add)
+            {
+                // 加载更早历史是头插（不在末尾），此时不自动滚底，保持用户浏览位置
+                if (e.NewStartingIndex >= 0 && e.NewStartingIndex < LstMessages.Items.Count - 1)
+                    return;
+                // 等新消息容器布局完成后再滚到底部：CollectionChanged 时容器可能尚未生成，立即 ScrollIntoView 会失效
+                Dispatcher.BeginInvoke(new Action(() =>
+                {
+                    var scroll = FindVisualChild<ScrollViewer>(LstMessages);
+                    if (scroll != null)
+                        scroll.ScrollToEnd();
+                    else if (LstMessages.Items.Count > 0)
+                        LstMessages.ScrollIntoView(LstMessages.Items[LstMessages.Items.Count - 1]);
+                }), System.Windows.Threading.DispatcherPriority.Background);
+            }
+        }
+
+        private void LstMessages_ScrollChanged(object sender, ScrollChangedEventArgs e)
+        {
+            // 消息列表滚动到顶部时请求加载更早历史
+            if (e.VerticalOffset <= 0)
+                _vm.Client.LoadMoreHistory();
+        }
+
+        private static T FindVisualChild<T>(DependencyObject parent) where T : DependencyObject
+        {
+            for (var i = 0; i < VisualTreeHelper.GetChildrenCount(parent); i++)
+            {
+                var child = VisualTreeHelper.GetChild(parent, i);
+                if (child is T match) return match;
+                var inner = FindVisualChild<T>(child);
+                if (inner != null) return inner;
+            }
+            return null;
+        }
+
+        // ---------------- 服务器面板：整区滚轮滚动 ----------------
+
+        private void ServerScroll_PreviewMouseWheel(object sender, MouseWheelEventArgs e)
+        {
+            // 鼠标在服务器面板任意位置（含内部列表/表格上方）时统一滚动整个面板，
+            // 避免只有悬停在右侧滚动条上才能滚动。
+            if (!(sender is ScrollViewer sv)) return;
+            var lines = SystemParameters.WheelScrollLines;
+            if (lines < 0)
+            {
+                if (e.Delta > 0) sv.PageUp();
+                else sv.PageDown();
+            }
+            else
+            {
+                for (var i = 0; i < lines; i++)
+                {
+                    if (e.Delta > 0) sv.LineUp();
+                    else sv.LineDown();
+                }
+            }
+            e.Handled = true;
         }
 
         // ---------------- 服务器房间详情：踢人 / 黑名单 ----------------

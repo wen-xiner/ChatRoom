@@ -22,8 +22,9 @@ namespace ChatRoom.Core.Rooms
         /// <summary>当前在线成员（连接的会话）。</summary>
         public ICollection<ServerSession> Members => _members.Values;
 
-        private readonly ConcurrentQueue<ChatMessage> _recentMessages = new ConcurrentQueue<ChatMessage>();
-        private const int RecentCapacity = 50;
+        private readonly ConcurrentQueue<HistoryMessage> _recentMessages = new ConcurrentQueue<HistoryMessage>();
+        /// <summary>历史缓冲条数（与持久化保留条数一致，保证写盘的历史完整）。</summary>
+        private const int RecentCapacity = 200;
 
         public int OnlineCount => _members.Count;
 
@@ -41,8 +42,8 @@ namespace ChatRoom.Core.Rooms
 
         public void Close() => IsClosed = true;
 
-        /// <summary>记录最近消息（加入时下发，仅本房间，历史隔离）。</summary>
-        public void PushRecent(ChatMessage m)
+        /// <summary>记录最近消息（文本/文件/图片统一载体，加入时下发，仅本房间，历史隔离）。</summary>
+        public void PushRecent(HistoryMessage m)
         {
             _recentMessages.Enqueue(m);
             while (_recentMessages.Count > RecentCapacity)
@@ -50,7 +51,7 @@ namespace ChatRoom.Core.Rooms
         }
 
         /// <summary>取最近 n 条消息（只取本房间的）。</summary>
-        public List<ChatMessage> GetRecent(int n)
+        public List<HistoryMessage> GetRecent(int n)
         {
             var all = _recentMessages.ToList();
             return all.Count <= n ? all : all.Skip(all.Count - n).ToList();

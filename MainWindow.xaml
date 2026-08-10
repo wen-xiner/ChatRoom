@@ -266,7 +266,8 @@
             <Border Grid.Column="0" Width="400" MinWidth="340" MaxWidth="560" Background="White"
                     BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,1,0"
                     Visibility="{Binding IsServerVisible, Converter={StaticResource BoolToVis}}">
-                <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Padding="12,10">
+                <ScrollViewer x:Name="ServerScroll" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
+                              Padding="12,10" PreviewMouseWheel="ServerScroll_PreviewMouseWheel">
                     <StackPanel>
                         <!-- 服务器状态 -->
                         <Border Style="{StaticResource CardStyle}" Margin="0,0,0,8">
@@ -478,7 +479,8 @@
                 <Border Grid.Row="1" Background="#F3F7F6" Padding="14,10" Margin="0,8,0,0">
                     <ListBox x:Name="LstMessages" ItemsSource="{Binding Client.Messages}"
                              Background="Transparent" BorderThickness="0" Padding="4"
-                             ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                             ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                             ScrollViewer.ScrollChanged="LstMessages_ScrollChanged">
                         <ListBox.ItemContainerStyle>
                             <Style TargetType="ListBoxItem">
                                 <Setter Property="HorizontalContentAlignment" Value="Stretch"/>

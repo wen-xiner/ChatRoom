@@ -15,7 +15,7 @@
 | 消息隔离 | 房间间消息完全隔离；非当前房间只收"新消息"通知，不接收内容 |
 | 房间用户 | 用户列表（在线状态点、本人标记）、进出房间通知 |
 | 服务器管理 | **踢出用户、房间黑名单**（按用户 ID / IP） |
-| 历史消息 | 每个房间独立保存，加入时拉取最近 10 条（重启恢复） |
+| 历史消息 | 每房间独立保存**文本/文件/图片**（最近 200 条）；加入恢复最近 10 条，**向上滚动加载更早** |
 | 服务器状态 | 连接数、在线用户（按 ID 去重）、房间数、各房间在线人数 |
 
 ## 二、技术栈
@@ -74,9 +74,9 @@
 | `Config/server-config.json` | 端口、0000 发言上限 |
 | `Config/rooms.json` | 手动创建的房间（重启恢复） |
 | `Config/blacklist.json` | 房间黑名单 |
-| `Config/client-config.json` | 客户端 IP/端口/用户名/已加入房间（重连自动再加入） |
+| `Config/client-config.json` | 客户端 IP/端口/用户名 |
 | `Config/ui-config.json` | 窗口大小、表格列宽 |
-| `History/{roomId}.json` | 各房间历史消息（按房间隔离） |
+| `History/{roomId}.json` | 各房间历史消息（文本/文件/图片，最近 200 条，按房间隔离） |
 | `Files/{roomId}/{fileId}/` | 上传的文件/图片（含缩略图） |
 
 ## 八、目录结构
@@ -106,7 +106,7 @@ ChatRoom/
 # 编译（Debug / Release）
 MSBuild ChatRoom.sln -p:Configuration=Release
 
-# 打安装包（需本机装有 Inno Setup 6）
+# 打安装包
 ISCC.exe InnoSetup\ChatRoomSetup.iss
 # 产物：InnoSetup\Output\ChatRoomSetup.exe
 ```

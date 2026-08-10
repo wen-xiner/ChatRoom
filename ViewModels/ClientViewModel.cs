@@ -76,7 +76,10 @@ namespace ChatRoom.ViewModels
         private readonly Dictionary<string, DownloadSession> _downloads = new Dictionary<string, DownloadSession>();
 
         private readonly ClientConfig _clientConfig;
-        private readonly List<string> _savedRooms = new List<string>();
+
+        // 向上滚动加载更早历史：请求防抖 + 无更多标记（按当前房间）
+        private bool _loadingHistory;
+        private bool _noMoreHistory;
 
         public ClientViewModel()
         {
@@ -85,8 +88,6 @@ namespace ChatRoom.ViewModels
             _serverIp = _clientConfig.ServerIp;
             _portText = _clientConfig.Port.ToString();
             _userName = _clientConfig.UserName;
-            if (_clientConfig.JoinedRooms != null)
-                _savedRooms.AddRange(_clientConfig.JoinedRooms);
         }
 
         // ---------------- 连接 ----------------
@@ -188,6 +189,8 @@ namespace ChatRoom.ViewModels
         {
             if (string.IsNullOrEmpty(roomId) || roomId == ActiveRoomId) return;
             ActiveRoomId = roomId;
+            _loadingHistory = false;
+            _noMoreHistory = false;
             Client?.Send(WsMessage.Create(WsMessageType.SetActiveRoom, new { roomId }));
 
             // 切换显示该房间消息（其它房间消息不上屏，隔离）
@@ -199,6 +202,18 @@ namespace ChatRoom.ViewModels
             if (item != null) item.HasNewMessage = false;
 
             RefreshUsers(roomId);
+        }
+
+        /// <summary>请求当前房间更早的历史（消息列表滚动到顶部时由 UI 调用）。</summary>
+        public void LoadMoreHistory()
+        {
+            if (!IsConnected || string.IsNullOrEmpty(ActiveRoomId)) return;
+            if (_loadingHistory || _noMoreHistory) return;
+            var oldest = OldestMessageTime();
+            if (!oldest.HasValue) return;
+            _loadingHistory = true;
+            Client.Send(WsMessage.Create(WsMessageType.HistoryRequest,
+                new { roomId = ActiveRoomId, beforeTime = oldest.Value.ToString("o") }));
         }
 
         private void RefreshUsers(string roomId)
@@ -233,8 +248,6 @@ namespace ChatRoom.ViewModels
                 Messages.Clear();
                 Users.Clear();
             }
-            if (_savedRooms.Remove(roomId))
-                SaveClientConfig();
         }
 
         // ---------------- 文本 ----------------
@@ -376,7 +389,6 @@ namespace ChatRoom.ViewModels
                 case WsMessageType.HelloAck:
                     MySessionId = msg.payload["sessionId"]?.ToString();
                     StatusDetail = "服务器握手成功。";
-                    RejoinSavedRooms();
                     break;
                 case WsMessageType.Error: StatusDetail = msg.payload["reason"]?.ToString() ?? "服务器返回错误"; break;
                 case WsMessageType.JoinAck: HandleJoinAck(msg); break;
@@ -396,6 +408,7 @@ namespace ChatRoom.ViewModels
                 case WsMessageType.FileMeta: HandleFileMeta(msg); break;
                 case WsMessageType.ImageMeta: HandleImageMeta(msg); break;
                 case WsMessageType.FileData: HandleFileData(msg); break;
+                case WsMessageType.HistoryAck: HandleHistoryAck(msg); break;
             }
         }
 
@@ -406,9 +419,6 @@ namespace ChatRoom.ViewModels
             if (!(bool)(msg.payload["ok"] ?? false))
             {
                 StatusDetail = $"加入房间 {roomId} 失败：{msg.payload["reason"]}";
-                // 自动重连的已存房间若已不存在，从保存列表移除，避免残留
-                if (_savedRooms.Remove(roomId))
-                    SaveClientConfig();
                 return;
             }
 
@@ -420,9 +430,12 @@ namespace ChatRoom.ViewModels
             var users = msg.payload["users"]?.ToObject<List<UserInfo>>() ?? new List<UserInfo>();
             _roomUsers[roomId].AddRange(users);
 
-            var history = msg.payload["history"]?.ToObject<List<ChatMessage>>() ?? new List<ChatMessage>();
+            var history = msg.payload["history"]?.ToObject<List<HistoryMessage>>() ?? new List<HistoryMessage>();
             foreach (var h in history)
-                _roomMessages[roomId].Add(ToChatItem(h));
+            {
+                var histItem = ToHistoryItem(h);
+                if (histItem != null) _roomMessages[roomId].Add(histItem);
+            }
 
             var item = GetJoined(roomId);
             if (item == null)
@@ -436,12 +449,6 @@ namespace ChatRoom.ViewModels
                 item.Name = name;
                 item.OnlineCount = users.Count;
                 item.Available = true;
-            }
-
-            if (!_savedRooms.Contains(roomId))
-            {
-                _savedRooms.Add(roomId);
-                SaveClientConfig();
             }
 
             SetActiveRoom(roomId);
@@ -608,6 +615,33 @@ namespace ChatRoom.ViewModels
             }
         }
 
+        private void HandleHistoryAck(WsMessage msg)
+        {
+            _loadingHistory = false;
+            var roomId = msg.payload["roomId"]?.ToString();
+            if (roomId != ActiveRoomId) return;
+            var messages = msg.payload["messages"]?.ToObject<List<HistoryMessage>>() ?? new List<HistoryMessage>();
+            if (messages.Count == 0) { _noMoreHistory = true; return; }
+
+            var items = new List<object>();
+            foreach (var h in messages)
+            {
+                var item = ToHistoryItem(h);
+                if (item != null) items.Add(item);
+            }
+            if (items.Count == 0) { _noMoreHistory = true; return; }
+
+            // 倒序头插，保证时间升序（顶部最早）。头部插入不触发自动滚底。
+            if (_roomMessages.TryGetValue(roomId, out var cache))
+            {
+                for (var i = items.Count - 1; i >= 0; i--)
+                    cache.Insert(0, items[i]);
+            }
+            for (var i = items.Count - 1; i >= 0; i--)
+                Messages.Insert(0, items[i]);
+            StatusDetail = $"已加载更早的历史（共 {items.Count} 条）";
+        }
+
         private void SaveDownloaded(DownloadSession dl, byte[] bytes, string fileId)
         {
             try
@@ -637,24 +671,65 @@ namespace ChatRoom.ViewModels
 
         private void AppendMessage(object item) => Messages.Add(item);
 
-        /// <summary>握手成功后自动重连上次加入的房间（房间不存在则服务端返回失败）。</summary>
-        private void RejoinSavedRooms()
-        {
-            foreach (var roomId in _savedRooms.ToList())
-                Client?.Send(WsMessage.Create(WsMessageType.JoinRoom, new { roomId }));
-        }
-
         private void SaveClientConfig()
         {
             _clientConfig.ServerIp = ServerIp;
             _clientConfig.Port = int.TryParse(PortText.Trim(), out var p) ? p : AppConfig.DefaultPort;
             _clientConfig.UserName = UserName;
-            _clientConfig.JoinedRooms = _savedRooms.ToList();
             JsonStore.Save(AppConfig.ClientConfigPath, _clientConfig);
         }
 
         private ChatMessageItem ToChatItem(ChatMessage chat)
             => new ChatMessageItem { Data = chat, IsMine = chat.SenderSessionId == MySessionId };
+
+        /// <summary>把统一历史消息还原为可渲染的消息项（文本/文件/图片）。</summary>
+        private object ToHistoryItem(HistoryMessage h)
+        {
+            switch (h.Kind)
+            {
+                case "file":
+                    var fm = h.Payload?.ToObject<FileMessage>();
+                    if (fm == null) return null;
+                    var fitem = new FileMessageItem { Data = fm, IsMine = fm.SenderSessionId == MySessionId };
+                    _fileItems[fm.FileId] = fitem;
+                    return fitem;
+                case "image":
+                    var im = h.Payload?.ToObject<ImageMessage>();
+                    if (im == null) return null;
+                    var iitem = new ImageMessageItem
+                    {
+                        Data = im,
+                        IsMine = im.SenderSessionId == MySessionId,
+                        ImageSource = BuildImageSource(im, IsAuthenticated)
+                    };
+                    _imageItems[im.FileId] = iitem;
+                    return iitem;
+                default:
+                    var chat = h.Payload?.ToObject<ChatMessage>();
+                    return chat == null ? null : ToChatItem(chat);
+            }
+        }
+
+        /// <summary>当前渲染列表中最早一条真实消息的发送时间（系统消息无时间则跳过）。</summary>
+        private DateTime? OldestMessageTime()
+        {
+            DateTime? oldest = null;
+            foreach (var m in Messages)
+            {
+                var t = MessageTime(m);
+                if (t.HasValue && (!oldest.HasValue || t.Value < oldest.Value))
+                    oldest = t;
+            }
+            return oldest;
+        }
+
+        private static DateTime? MessageTime(object item)
+        {
+            if (item is ChatMessageItem cm) return cm.Data?.SentTime;
+            if (item is FileMessageItem fm) return fm.Data?.SentTime;
+            if (item is ImageMessageItem im) return im.Data?.SentTime;
+            return null;
+        }
 
         // ---------------- 工具 ----------------
 

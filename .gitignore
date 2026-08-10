@@ -24,6 +24,9 @@ plan.md
 day1.md
 day2.md
 
+# Claude Code 本地配置（隔离，不上传）
+.claude/
+
 # OS files
 Thumbs.db
 Desktop.ini
