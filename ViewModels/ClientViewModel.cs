@@ -77,6 +77,9 @@ namespace ChatRoom.ViewModels
 
         private readonly ClientConfig _clientConfig;
 
+        // 已加入过的房间记录（持久化到 client-config.json；连接后仅显示列表，不自动加入，点击后重新加入）
+        private readonly List<string> _savedRooms = new List<string>();
+
         // 向上滚动加载更早历史：请求防抖 + 无更多标记（按当前房间）
         private bool _loadingHistory;
         private bool _noMoreHistory;
@@ -88,6 +91,11 @@ namespace ChatRoom.ViewModels
             _serverIp = _clientConfig.ServerIp;
             _portText = _clientConfig.Port.ToString();
             _userName = _clientConfig.UserName;
+            // 按当前账号（用户 ID）加载该账号加入过的房间，避免同机多账号互相串
+            if (_clientConfig.JoinedRoomsByUser != null &&
+                _clientConfig.JoinedRoomsByUser.TryGetValue(AuthService.GetUserId(), out var userRooms) &&
+                userRooms != null)
+                _savedRooms.AddRange(userRooms);
         }
 
         // ---------------- 连接 ----------------
@@ -147,9 +155,12 @@ namespace ChatRoom.ViewModels
 
         // ---------------- 房间管理 ----------------
 
-        public void JoinRoom()
+        public void JoinRoom() => JoinRoom(JoinRoomInput.Trim());
+
+        /// <summary>加入指定房间（也用于点击已恢复的历史房间条目重新加入）。</summary>
+        public void JoinRoom(string roomId)
         {
-            var roomId = JoinRoomInput.Trim();
+            if (string.IsNullOrWhiteSpace(roomId)) return;
             if (roomId.Length < 4 || roomId.Length > 6 || !roomId.All(char.IsDigit))
             {
                 StatusDetail = "房间号必须为 4~6 位数字。";
@@ -159,6 +170,25 @@ namespace ChatRoom.ViewModels
             Client.Send(WsMessage.Create(WsMessageType.JoinRoom, new { roomId }));
             JoinRoomInput = "";
             StatusDetail = $"正在加入房间 {roomId}...";
+        }
+
+        /// <summary>连接后把上次加入过的房间显示到「已加入房间」列表（不自动加入，点击后重新加入）。</summary>
+        private void RestoreSavedRooms()
+        {
+            foreach (var roomId in _savedRooms.ToList())
+            {
+                if (GetJoined(roomId) != null) continue;
+                var item = new JoinedRoomItem
+                {
+                    RoomId = roomId,
+                    Name = roomId,
+                    OnlineCount = 0,
+                    Joined = false
+                };
+                // 必须同步写 _joinedIndex，否则点击加入收到 JoinAck 时 GetJoined 找不到 → 重复新增条目
+                _joinedIndex[roomId] = item;
+                JoinedRooms.Add(item);
+            }
         }
 
         /// <summary>退出指定房间。已关闭房间直接本地移除，不发消息给服务器。</summary>
@@ -248,6 +278,30 @@ namespace ChatRoom.ViewModels
                 Messages.Clear();
                 Users.Clear();
             }
+            if (_savedRooms.Remove(roomId))
+                SaveClientConfig();
+        }
+
+        /// <summary>从列表与保存中移除一个房间记录（加入失败时清理历史恢复的条目）。</summary>
+        private void RemoveSavedRoom(string roomId)
+        {
+            var item = GetJoined(roomId);
+            if (item != null)
+            {
+                JoinedRooms.Remove(item);
+                _joinedIndex.Remove(roomId);
+            }
+            _roomMessages.Remove(roomId);
+            _roomUsers.Remove(roomId);
+            _roomNames.Remove(roomId);
+            if (ActiveRoomId == roomId)
+            {
+                ActiveRoomId = null;
+                Messages.Clear();
+                Users.Clear();
+            }
+            if (_savedRooms.Remove(roomId))
+                SaveClientConfig();
         }
 
         // ---------------- 文本 ----------------
@@ -389,6 +443,7 @@ namespace ChatRoom.ViewModels
                 case WsMessageType.HelloAck:
                     MySessionId = msg.payload["sessionId"]?.ToString();
                     StatusDetail = "服务器握手成功。";
+                    RestoreSavedRooms(); // 恢复显示上次加入的房间（不自动加入）
                     break;
                 case WsMessageType.Error: StatusDetail = msg.payload["reason"]?.ToString() ?? "服务器返回错误"; break;
                 case WsMessageType.JoinAck: HandleJoinAck(msg); break;
@@ -419,6 +474,8 @@ namespace ChatRoom.ViewModels
             if (!(bool)(msg.payload["ok"] ?? false))
             {
                 StatusDetail = $"加入房间 {roomId} 失败：{msg.payload["reason"]}";
+                // 历史恢复的房间若不可加入，从列表与保存中移除，避免残留
+                RemoveSavedRoom(roomId);
                 return;
             }
 
@@ -440,15 +497,22 @@ namespace ChatRoom.ViewModels
             var item = GetJoined(roomId);
             if (item == null)
             {
-                item = new JoinedRoomItem { RoomId = roomId, Name = name, OnlineCount = users.Count };
+                item = new JoinedRoomItem { RoomId = roomId, Name = name, OnlineCount = users.Count(u => u.Online) };
                 _joinedIndex[roomId] = item;
                 JoinedRooms.Add(item);
             }
             else
             {
                 item.Name = name;
-                item.OnlineCount = users.Count;
+                item.OnlineCount = users.Count(u => u.Online);
                 item.Available = true;
+            }
+            item.Joined = true; // 历史恢复的条目点击加入成功后转为真正已加入
+
+            if (!_savedRooms.Contains(roomId))
+            {
+                _savedRooms.Add(roomId);
+                SaveClientConfig();
             }
 
             SetActiveRoom(roomId);
@@ -463,16 +527,23 @@ namespace ChatRoom.ViewModels
 
             // 按 SessionId 去重（同一机器多实例共享 UserId，不能用 UserId 判重）
             user.IsMe = user.SessionId == MySessionId;
-            if (_roomUsers.TryGetValue(roomId, out var list) && !list.Any(u => u.SessionId == user.SessionId))
-                list.Add(user);
+            if (_roomUsers.TryGetValue(roomId, out var list))
+            {
+                // 同一用户重新上线：清除其历史离线条目（避免灰色残留）
+                list.RemoveAll(u => u.UserId == user.UserId && !u.Online);
+                if (!list.Any(u => u.SessionId == user.SessionId))
+                    list.Add(user);
+            }
 
             var item = GetJoined(roomId);
-            if (item != null) item.OnlineCount = _roomUsers.TryGetValue(roomId, out var ul) ? ul.Count : item.OnlineCount;
+            if (item != null) item.OnlineCount = OnlineCountOf(roomId);
 
             if (roomId == ActiveRoomId)
             {
                 RefreshUsers(roomId);
-                AppendMessage(new SystemMessageItem { Text = $"用户 {user.UserName} 加入了房间" });
+                // 自己加入的提示不显示给自己（避免"加入提示一直存在"）；其他成员仍会看到
+                if (!user.IsMe)
+                    AppendMessage(new SystemMessageItem { Text = $"用户 {user.UserName} 加入了房间" });
             }
             else if (item != null)
             {
@@ -480,30 +551,57 @@ namespace ChatRoom.ViewModels
             }
         }
 
+        /// <summary>房间在线人数（只统计 Online=true，不含离线用户）。</summary>
+        private int OnlineCountOf(string roomId)
+            => _roomUsers.TryGetValue(roomId, out var list) ? list.Count(u => u.Online) : 0;
+
         private void HandleUserLeft(WsMessage msg)
         {
             var roomId = msg.payload["roomId"]?.ToString();
             var sessionId = msg.payload["sessionId"]?.ToString();
-            if (roomId == null || string.IsNullOrEmpty(sessionId)) return;
+            var offline = (bool)(msg.payload["offline"] ?? false);
+            var userId = msg.payload["userId"]?.ToString();
+            var userName = msg.payload["userName"]?.ToString();
+            if (roomId == null) return;
 
-            var leftName = sessionId;
+            var leftName = userName ?? sessionId;
             if (_roomUsers.TryGetValue(roomId, out var list))
             {
-                var removed = list.FirstOrDefault(u => u.SessionId == sessionId);
-                if (removed != null)
+                if (offline)
                 {
-                    list.Remove(removed);
-                    leftName = removed.UserName;
+                    // 断开连接 → 离线：把该会话条目标记为离线（保留在列表，灰色状态点）
+                    var entry = list.FirstOrDefault(u => u.SessionId == sessionId);
+                    if (entry != null)
+                    {
+                        entry.Online = false;
+                        if (!string.IsNullOrEmpty(entry.UserName)) leftName = entry.UserName;
+                    }
+                    else if (!string.IsNullOrEmpty(userId))
+                    {
+                        // 该会话条目不存在时，按 userId 添加离线条目
+                        list.RemoveAll(u => u.UserId == userId && !u.Online);
+                        list.Add(new UserInfo { SessionId = sessionId, UserId = userId, UserName = userName, Online = false });
+                    }
+                }
+                else
+                {
+                    // 主动退出 / 被踢 → 真正移除
+                    var removed = list.FirstOrDefault(u => u.SessionId == sessionId);
+                    if (removed != null)
+                    {
+                        list.Remove(removed);
+                        if (!string.IsNullOrEmpty(removed.UserName)) leftName = removed.UserName;
+                    }
                 }
             }
 
             var item = GetJoined(roomId);
-            if (item != null) item.OnlineCount = _roomUsers.TryGetValue(roomId, out var ul) ? ul.Count : item.OnlineCount;
+            if (item != null) item.OnlineCount = OnlineCountOf(roomId);
 
             if (roomId == ActiveRoomId)
             {
                 RefreshUsers(roomId);
-                AppendMessage(new SystemMessageItem { Text = $"用户 {leftName} 离开了房间" });
+                AppendMessage(new SystemMessageItem { Text = offline ? $"用户 {leftName} 已离线" : $"用户 {leftName} 离开了房间" });
             }
             else if (item != null)
             {
@@ -549,6 +647,8 @@ namespace ChatRoom.ViewModels
             if (chat.RoomId == ActiveRoomId)
             {
                 var item = ToChatItem(chat);
+                // 去重：join 窗口期同一消息可能同时通过 history 与实时广播到达
+                if (IsDuplicateMessage(chat.RoomId, item)) return;
                 _roomMessages[chat.RoomId].Add(item);
                 AppendMessage(item);
             }
@@ -568,6 +668,7 @@ namespace ChatRoom.ViewModels
 
             if (fm.RoomId == ActiveRoomId)
             {
+                if (IsDuplicateMessage(fm.RoomId, item)) return;
                 _roomMessages[fm.RoomId].Add(item);
                 AppendMessage(item);
             }
@@ -587,6 +688,7 @@ namespace ChatRoom.ViewModels
 
             if (im.RoomId == ActiveRoomId)
             {
+                if (IsDuplicateMessage(im.RoomId, item)) return;
                 _roomMessages[im.RoomId].Add(item);
                 AppendMessage(item);
             }
@@ -676,6 +778,7 @@ namespace ChatRoom.ViewModels
             _clientConfig.ServerIp = ServerIp;
             _clientConfig.Port = int.TryParse(PortText.Trim(), out var p) ? p : AppConfig.DefaultPort;
             _clientConfig.UserName = UserName;
+            _clientConfig.JoinedRoomsByUser[AuthService.GetUserId()] = _savedRooms.ToList();
             JsonStore.Save(AppConfig.ClientConfigPath, _clientConfig);
         }
 
@@ -729,6 +832,22 @@ namespace ChatRoom.ViewModels
             if (item is FileMessageItem fm) return fm.Data?.SentTime;
             if (item is ImageMessageItem im) return im.Data?.SentTime;
             return null;
+        }
+
+        /// <summary>缓存中是否已存在相同消息（防 join 窗口期 history 与实时广播重叠导致重复）。</summary>
+        private bool IsDuplicateMessage(string roomId, object item)
+        {
+            if (!_roomMessages.TryGetValue(roomId, out var list)) return false;
+            if (item is ChatMessageItem cm && cm.Data != null)
+                return list.Any(x => x is ChatMessageItem o && o.Data != null
+                    && o.Data.SenderSessionId == cm.Data.SenderSessionId
+                    && o.Data.SentTime == cm.Data.SentTime
+                    && o.Data.Content == cm.Data.Content);
+            if (item is FileMessageItem fm && fm.Data != null)
+                return list.Any(x => x is FileMessageItem o && o.Data != null && o.Data.FileId == fm.Data.FileId);
+            if (item is ImageMessageItem im && im.Data != null)
+                return list.Any(x => x is ImageMessageItem o && o.Data != null && o.Data.FileId == im.Data.FileId);
+            return false;
         }
 
         // ---------------- 工具 ----------------

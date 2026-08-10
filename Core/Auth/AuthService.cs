@@ -10,12 +10,19 @@ namespace ChatRoom.Core.Auth
     /// </summary>
     public static class AuthService
     {
-        /// <summary>本机注册码（机器指纹 → SHA256）。</summary>
+        /// <summary>
+        /// 本机注册码（组合多种硬件指纹 → SHA256）。
+        /// 组合 CPU/主板/BIOS/磁盘/物理网卡 MAC/系统安装时间，任一项读取失败不影响整体唯一性；
+        /// 修复个别电脑因 CPU/主板序列号读不到、且安装时间相同（统一镜像部署）导致的注册码重复。
+        /// </summary>
         public static string GetRegCode()
         {
             return AuthAlgorithm.ComputeRegCode(
                 MachineFingerprint.GetCpuSerial(),
                 MachineFingerprint.GetMotherboardSerial(),
+                MachineFingerprint.GetBiosSerial(),
+                MachineFingerprint.GetDiskSerial(),
+                MachineFingerprint.GetPhysicalMac(),
                 MachineFingerprint.GetSystemInstallTime());
         }
 

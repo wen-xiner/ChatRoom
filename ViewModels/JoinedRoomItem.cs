@@ -29,7 +29,22 @@ namespace ChatRoom.ViewModels
             set { _available = value; OnPropertyChanged(); OnPropertyChanged(nameof(AvailabilityText)); }
         }
 
-        public string AvailabilityText => Available ? "可用" : "已关闭";
+        private bool _joined = true;
+        /// <summary>本次是否已真正加入（连接后恢复显示的历史房间为 false，点击后重新加入）。</summary>
+        public bool Joined
+        {
+            get => _joined;
+            set { _joined = value; OnPropertyChanged(); OnPropertyChanged(nameof(AvailabilityText)); }
+        }
+
+        public string AvailabilityText
+        {
+            get
+            {
+                if (!Available) return "已关闭";
+                return Joined ? "可用" : "未加入";
+            }
+        }
 
         public string Header => $"#{RoomId} {Name}（{OnlineCount}人）";
 

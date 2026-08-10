@@ -129,6 +129,7 @@
     <Compile Include="Models\FileMessage.cs" />
     <Compile Include="Models\HistoryMessage.cs" />
     <Compile Include="Models\ImageMessage.cs" />
+    <Compile Include="Models\OfflineUser.cs" />
     <Compile Include="Models\UserInfo.cs" />
     <Compile Include="ViewModels\ChatMessageItem.cs" />
     <Compile Include="ViewModels\ClientViewModel.cs" />

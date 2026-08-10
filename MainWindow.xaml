@@ -174,6 +174,9 @@
                             <Style TargetType="TextBlock">
                                 <Setter Property="Foreground" Value="{StaticResource SuccessBrush}"/>
                                 <Style.Triggers>
+                                    <DataTrigger Binding="{Binding Joined}" Value="False">
+                                        <Setter Property="Foreground" Value="{StaticResource WarningBrush}"/>
+                                    </DataTrigger>
                                     <DataTrigger Binding="{Binding Available}" Value="False">
                                         <Setter Property="Foreground" Value="{StaticResource DangerBrush}"/>
                                     </DataTrigger>
@@ -221,9 +224,25 @@
                     <TextBlock Text="{Binding UserId}" FontSize="9" Foreground="{StaticResource TextLightBrush}"
                                Margin="6,0,0,0" TextTrimming="CharacterEllipsis" MaxWidth="110"/>
                 </StackPanel>
-                <TextBlock Grid.Column="2" Text="我" FontSize="9" FontWeight="Bold" Foreground="{StaticResource PrimaryBrush}"
-                           Margin="4,0,0,0" VerticalAlignment="Center"
-                           Visibility="{Binding IsMe, Converter={StaticResource BoolToVis}}"/>
+                <TextBlock Grid.Column="2" FontSize="9" FontWeight="Bold" Margin="4,0,0,0" VerticalAlignment="Center">
+                    <TextBlock.Style>
+                        <Style TargetType="TextBlock">
+                            <Setter Property="Text" Value="我"/>
+                            <Setter Property="Foreground" Value="{StaticResource PrimaryBrush}"/>
+                            <Setter Property="Visibility" Value="Collapsed"/>
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsMe}" Value="True">
+                                    <Setter Property="Visibility" Value="Visible"/>
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding Online}" Value="False">
+                                    <Setter Property="Text" Value="离线"/>
+                                    <Setter Property="Foreground" Value="{StaticResource WarningBrush}"/>
+                                    <Setter Property="Visibility" Value="Visible"/>
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBlock.Style>
+                </TextBlock>
             </Grid>
         </DataTemplate>
     </Window.Resources>
@@ -345,7 +364,14 @@
                                             </DataGridTemplateColumn.CellTemplate>
                                         </DataGridTemplateColumn>
                                         <DataGridTextColumn x:Name="ColOnline" Header="在线" Binding="{Binding OnlineCount}" Width="40"/>
-                                        <DataGridTextColumn x:Name="ColTotal" Header="总人数" Binding="{Binding TotalText}" Width="48"/>
+                                        <DataGridTextColumn x:Name="ColOffline" Header="离线" Binding="{Binding OfflineCount}" Width="40"/>
+                                        <DataGridTextColumn x:Name="ColTotal" Header="总人数" Binding="{Binding TotalText}" Width="48">
+                                            <DataGridTextColumn.ElementStyle>
+                                                <Style TargetType="TextBlock">
+                                                    <Setter Property="ToolTip" Value="{Binding TotalTooltip}"/>
+                                                </Style>
+                                            </DataGridTextColumn.ElementStyle>
+                                        </DataGridTextColumn>
                                         <DataGridTextColumn x:Name="ColStatus" Header="状态" Binding="{Binding StatusText}" Width="48"/>
                                     </DataGrid.Columns>
                                 </DataGrid>
@@ -367,12 +393,36 @@
                                     <ListView.ItemTemplate>
                                         <DataTemplate>
                                             <StackPanel Orientation="Horizontal">
+                                                <Ellipse Width="8" Height="8" VerticalAlignment="Center" Margin="0,0,6,0">
+                                                    <Ellipse.Style>
+                                                        <Style TargetType="Ellipse">
+                                                            <Setter Property="Fill" Value="#BFCAC4"/>
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding Online}" Value="True">
+                                                                    <Setter Property="Fill" Value="{StaticResource SuccessBrush}"/>
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </Ellipse.Style>
+                                                </Ellipse>
                                                 <TextBlock Text="{Binding UserName}" FontWeight="SemiBold" FontSize="11"
                                                            Foreground="{StaticResource TextBrush}" Width="60" TextTrimming="CharacterEllipsis"/>
                                                 <TextBlock Text="{Binding UserId}" FontSize="9" Foreground="{StaticResource TextLightBrush}"
                                                            Width="100" TextTrimming="CharacterEllipsis"/>
-                                                <TextBlock Text="{Binding Ip}" FontSize="9" Foreground="{StaticResource TextGrayBrush}"
-                                                           TextTrimming="CharacterEllipsis"/>
+                                                <TextBlock FontSize="9" TextTrimming="CharacterEllipsis">
+                                                    <TextBlock.Style>
+                                                        <Style TargetType="TextBlock">
+                                                            <Setter Property="Text" Value="{Binding Ip}"/>
+                                                            <Setter Property="Foreground" Value="{StaticResource TextGrayBrush}"/>
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding Online}" Value="False">
+                                                                    <Setter Property="Text" Value="离线"/>
+                                                                    <Setter Property="Foreground" Value="{StaticResource WarningBrush}"/>
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </TextBlock.Style>
+                                                </TextBlock>
                                             </StackPanel>
                                         </DataTemplate>
                                     </ListView.ItemTemplate>
@@ -422,10 +472,14 @@
                                     <TextBlock Text="{Binding Server.RoomCountText}" FontSize="11" Foreground="{StaticResource TextGrayBrush}" Margin="14,0,0,0" VerticalAlignment="Center"/>
                                 </WrapPanel>
                                 <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
-                                    <TextBlock Text="0000 发言上限:" FontSize="11" Foreground="{StaticResource TextGrayBrush}" VerticalAlignment="Center"/>
-                                    <TextBox x:Name="TxtLimit" Text="{Binding Server.LimitText}" Width="48" Margin="6,0,0,0"/>
+                                    <TextBlock Text="0000 发言上限:" FontSize="11" Foreground="{StaticResource TextGrayBrush}" VerticalAlignment="Center"
+                                               ToolTip="0000 公共房间每人每小时可发言的最大条数（0 = 不限）"/>
+                                    <TextBox x:Name="TxtLimit" Text="{Binding Server.LimitText}" Width="48" Margin="6,0,0,0"
+                                             ToolTip="0000 公共房间每人每小时可发言的最大条数（0 = 不限）"/>
                                     <Button Content="保存" Click="BtnSaveLimit_Click" Background="{StaticResource PrimaryBrush}" Padding="12,4" Margin="6,0,0,0"/>
                                 </StackPanel>
+                                <TextBlock Text="说明：每人每小时可发言的最大条数（0 = 不限）" FontSize="10"
+                                           Foreground="{StaticResource TextLightBrush}" Margin="0,4,0,0"/>
                             </StackPanel>
                         </Border>
 

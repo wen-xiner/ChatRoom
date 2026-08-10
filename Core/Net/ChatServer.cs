@@ -238,11 +238,15 @@ namespace ChatRoom.Core.Net
             if (target == null) { error = $"房间 {roomId} 中未找到该用户。"; return false; }
 
             room.RemoveMember(target);
+            room.RemoveOffline(target.UserId); // 被踢出不留离线记录
             target.JoinedRooms.TryRemove(roomId, out _);
             if (target.ActiveRoomId == roomId) target.ActiveRoomId = null;
 
             target.Send(WsMessage.Create(WsMessageType.Kick, new { roomId, reason = "你已被服务器移出房间。" }));
-            RouteToRoom(room, WsMessage.Create(WsMessageType.UserLeft, new { roomId, userId = target.UserId, sessionId = target.ConnectionId }));
+            RouteToRoom(room, WsMessage.Create(WsMessageType.UserLeft, new
+            {
+                roomId, userId = target.UserId, userName = target.UserName, sessionId = target.ConnectionId, offline = false
+            }));
 
             Log?.Invoke($"已踢出 {target.UserName}（{target.UserId}）离开房间 {roomId}");
             RaiseStateChanged();
@@ -381,18 +385,12 @@ namespace ChatRoom.Core.Net
             }
 
             room.AddMember(s);
+            room.RemoveOffline(s.UserId); // 用户重新加入，清除其离线记录
             s.JoinedRooms[roomId] = 0;
             if (string.IsNullOrEmpty(s.ActiveRoomId)) s.ActiveRoomId = roomId;
 
-            var users = room.Members
-                .Select(m => new UserInfo
-                {
-                    SessionId = m.ConnectionId,
-                    UserId = m.UserId,
-                    UserName = m.UserName,
-                    Online = true
-                })
-                .ToList();
+            // 用户列表 = 在线成员（每个会话一条）+ 离线用户（断开未退出，按 userId 一条）
+            var users = room.GetUsers();
             var history = room.GetRecent(AppConfig.HistoryCountOnJoin);
             FillHistoryThumbs(history); // 图片历史补缩略图（历史文件不存 base64，此处从磁盘生成）
 
@@ -418,9 +416,13 @@ namespace ChatRoom.Core.Net
             if (room == null) return;
 
             room.RemoveMember(s);
+            room.RemoveOffline(s.UserId); // 主动退出不留离线记录
             s.JoinedRooms.TryRemove(roomId, out _);
             if (s.ActiveRoomId == roomId) s.ActiveRoomId = null;
-            RouteToRoom(room, WsMessage.Create(WsMessageType.UserLeft, new { roomId, userId = s.UserId, sessionId = s.ConnectionId }));
+            RouteToRoom(room, WsMessage.Create(WsMessageType.UserLeft, new
+            {
+                roomId, userId = s.UserId, userName = s.UserName, sessionId = s.ConnectionId, offline = false
+            }));
             Log?.Invoke($"{s.UserName} 退出房间 {roomId}");
             RaiseStateChanged();
         }
@@ -442,7 +444,13 @@ namespace ChatRoom.Core.Net
                 var room = Rooms.Get(roomId);
                 if (room == null) continue;
                 room.RemoveMember(s);
-                RouteToRoom(room, WsMessage.Create(WsMessageType.UserLeft, new { roomId, userId = s.UserId, sessionId = s.ConnectionId }));
+                // 断开连接即离线（不因同机多实例同 UserId 其他在线会话而判定"未离线"）。
+                // 离线记录按 userId 去重；客户端把该具体会话条目标记为离线而非移除。
+                room.AddOffline(s.UserId, s.UserName);
+                RouteToRoom(room, WsMessage.Create(WsMessageType.UserLeft, new
+                {
+                    roomId, userId = s.UserId, userName = s.UserName, sessionId = s.ConnectionId, offline = true
+                }));
             }
             s.JoinedRooms.Clear();
         }

@@ -1,3 +1,4 @@
+using System.Linq;
 using System.Security.Cryptography;
 using System.Text;
 
@@ -13,10 +14,13 @@ namespace ChatRoom.Core.Auth
 
         /// <summary>
         /// 由机器指纹生成注册码：SHA256 → 64 位小写十六进制（32 字节）。
+        /// 输入为若干指纹片段（CPU/主板/BIOS/磁盘/MAC/安装时间等），自动跳过空值后拼接。
+        /// 单个指纹缺失不影响整体唯一性——只要任一硬件序列号可读，不同机器即可区分。
         /// </summary>
-        public static string ComputeRegCode(string cpuSerial, string motherboardSerial, string installTime)
+        public static string ComputeRegCode(params string[] fingerprints)
         {
-            var raw = string.Concat(cpuSerial ?? "", "|", motherboardSerial ?? "", "|", installTime ?? "");
+            var raw = string.Join("|", (fingerprints ?? new string[0])
+                .Where(f => !string.IsNullOrWhiteSpace(f)));
             using (var sha = SHA256.Create())
             {
                 return ToHex(sha.ComputeHash(Encoding.UTF8.GetBytes(raw)));

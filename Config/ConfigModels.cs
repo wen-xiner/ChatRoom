@@ -44,6 +44,12 @@ namespace ChatRoom.Core.Storage
         public string ServerIp { get; set; } = "127.0.0.1";
         public int Port { get; set; } = AppConfig.DefaultPort;
         public string UserName { get; set; } = "";
+        /// <summary>
+        /// 按用户 ID 隔离的已加入房间：userId -> 房间列表。
+        /// 持久化到本机 client-config.json；连接后仅显示列表、不自动加入，点击后重新加入。
+        /// 按账号隔离避免同一台电脑多个账号互相串房间。
+        /// </summary>
+        public Dictionary<string, List<string>> JoinedRoomsByUser { get; set; } = new Dictionary<string, List<string>>();
     }
 
     /// <summary>UI 配置：窗口大小、表格列宽。</summary>

@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
 using System.Windows;
@@ -81,16 +82,36 @@ namespace ChatRoom.ViewModels
             RefreshAll();
         }
 
-        /// <summary>创建房间。CreateRoomId 为空则服务器随机生成。</summary>
+        /// <summary>创建房间。无论是否输入房间号都先弹窗确认，避免误创建。</summary>
         public void CreateRoom()
         {
             if (!IsRunning) { AddLog("请先启动服务器。"); return; }
             var id = CreateRoomId.Trim();
-            if (Server.CreateRoom(id, CreateRoomName.Trim(), out var roomId, out var error))
+            var name = CreateRoomName.Trim();
+
+            // 创建前统一确认：空房间号说明将随机生成；有输入则显示房间号/名称
+            var message = string.IsNullOrWhiteSpace(id)
+                ? "未输入房间号，将随机生成一个 4~6 位数字房间号。\n是否继续创建？"
+                : (string.IsNullOrWhiteSpace(name)
+                    ? $"确认创建房间 {id} 吗？"
+                    : $"确认创建房间 {id}（{name}）吗？");
+            var confirm = MessageBox.Show(Application.Current?.MainWindow, message, "创建房间",
+                MessageBoxButton.YesNo, MessageBoxImage.Question);
+            if (confirm != MessageBoxResult.Yes)
             {
-                AddLog($"已创建房间 {roomId}（{CreateRoomName.Trim()}）");
+                AddLog("已取消创建房间。");
+                return;
+            }
+
+            if (Server.CreateRoom(id, name, out var roomId, out var error))
+            {
+                AddLog($"已创建房间 {roomId}（{name}）");
                 CreateRoomId = "";
                 CreateRoomName = "";
+                // 创建成功弹窗提示（自定义房间号与随机生成都提示）
+                MessageBox.Show(Application.Current?.MainWindow,
+                    $"房间 {roomId}（{name}）创建成功。", "创建成功",
+                    MessageBoxButton.OK, MessageBoxImage.Information);
             }
             else
             {
@@ -140,7 +161,11 @@ namespace ChatRoom.ViewModels
             if (Server == null || SelectedRoom?.Room == null) return;
             var room = SelectedRoom.Room;
             foreach (var m in room.Members.OrderBy(x => x.UserName))
-                RoomMembers.Add(new ServerUserItem { UserId = m.UserId, UserName = m.UserName, Ip = m.ClientIp });
+                RoomMembers.Add(new ServerUserItem { UserId = m.UserId, UserName = m.UserName, Ip = m.ClientIp, Online = true });
+            // 离线用户（断开未退出）：每个离线连接都显示（灰点 + "离线"字样）。
+            // 不按 UserId 过滤在线会话，避免同机多实例共享 UserId 时断开的连接不显示离线。
+            foreach (var o in room.GetOfflineUsers().OrderBy(x => x.UserName))
+                RoomMembers.Add(new ServerUserItem { UserId = o.UserId, UserName = o.UserName, Ip = "", Online = false });
             foreach (var b in Server.Blacklist.GetEntries(room.RoomId).OrderByDescending(x => x.AddedTime))
                 RoomBlacklist.Add(b);
         }
@@ -220,7 +245,9 @@ namespace ChatRoom.ViewModels
                         RoomId = r.RoomId,
                         Name = r.Name,
                         OnlineCount = r.OnlineCount,
-                        TotalText = r.Capacity == 0 ? "不限" : r.Capacity.ToString(),
+                        OfflineCount = r.OfflineCount,
+                        TotalText = r.TotalCount.ToString(), // 总人数 = 在线 + 离线
+                        TotalTooltip = $"在线 {r.OnlineCount} / 离线 {r.OfflineCount} / 总 {r.TotalCount}",
                         StatusText = r.IsPublic ? "公共" : (r.IsClosed ? "已关闭" : "运行中"),
                         Room = r
                     });

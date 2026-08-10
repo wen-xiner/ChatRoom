@@ -84,7 +84,11 @@ namespace ChatRoom
 
         private void BtnStartServer_Click(object sender, RoutedEventArgs e) => _vm.Server.Start();
 
-        private void BtnStopServer_Click(object sender, RoutedEventArgs e) => _vm.Server.Stop();
+        private void BtnStopServer_Click(object sender, RoutedEventArgs e)
+        {
+            if (ConfirmDanger(this, "确定要关闭服务器吗？\n所有已连接的客户端将被断开。", "确认关闭服务器"))
+                _vm.Server.Stop();
+        }
 
         private void BtnCreateRoom_Click(object sender, RoutedEventArgs e) => _vm.Server.CreateRoom();
 
@@ -97,23 +101,45 @@ namespace ChatRoom
                     MessageBoxButton.OK, MessageBoxImage.Information);
                 return;
             }
-            _vm.Server.CloseRoom(item.RoomId);
+            if (ConfirmDanger(this, $"确定要关闭房间 {item.RoomId}（{item.Name}）吗？\n房间内所有成员将被移出。", "确认关闭房间"))
+                _vm.Server.CloseRoom(item.RoomId);
         }
 
         // ---------------- 客户端 ----------------
 
         private void BtnConnect_Click(object sender, RoutedEventArgs e) => _vm.Client.Connect();
 
-        private void BtnDisconnect_Click(object sender, RoutedEventArgs e) => _vm.Client.Disconnect();
+        private void BtnDisconnect_Click(object sender, RoutedEventArgs e)
+        {
+            if (ConfirmDanger(this, "确定要断开连接吗？\n断开后你在房间内的状态将变为离线（不会退出房间）。", "确认断开连接"))
+                _vm.Client.Disconnect();
+        }
 
         private void BtnJoinRoom_Click(object sender, RoutedEventArgs e) => _vm.Client.JoinRoom();
 
-        private void BtnLeaveRoom_Click(object sender, RoutedEventArgs e) => _vm.Client.LeaveCurrentRoom();
+        private void BtnLeaveRoom_Click(object sender, RoutedEventArgs e)
+        {
+            var roomId = _vm.Client.ActiveRoomId;
+            if (string.IsNullOrEmpty(roomId))
+            {
+                MessageBox.Show(this, "当前没有正在查看的房间。", "提示",
+                    MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+            if (ConfirmDanger(this, $"确定要退出房间 {roomId} 吗？", "确认退出房间"))
+                _vm.Client.LeaveCurrentRoom();
+        }
 
         private void LstJoinedRooms_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
             if (LstJoinedRooms.SelectedItem is JoinedRoomItem item)
-                _vm.Client.SetActiveRoom(item.RoomId);
+            {
+                // 历史恢复的条目（未加入）点击 = 加入；已加入的条目点击 = 切换查看
+                if (item.Joined)
+                    _vm.Client.SetActiveRoom(item.RoomId);
+                else
+                    _vm.Client.JoinRoom(item.RoomId);
+            }
         }
 
         private void TxtMessage_KeyDown(object sender, KeyEventArgs e)
@@ -227,13 +253,61 @@ namespace ChatRoom
             _vm.Server.SelectedBlacklist = LstRoomBlacklist.SelectedItem as ChatRoom.Models.BlacklistItem;
         }
 
-        private void BtnKick_Click(object sender, RoutedEventArgs e) => _vm.Server.KickSelectedUser();
+        private void BtnKick_Click(object sender, RoutedEventArgs e)
+        {
+            var user = _vm.Server.SelectedUser;
+            if (user == null)
+            {
+                MessageBox.Show(this, "请先在成员列表中选择要踢出的用户。", "提示",
+                    MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+            if (ConfirmDanger(this, $"确定要踢出用户 {user.UserName}（{user.UserId}）吗？", "确认踢出"))
+                _vm.Server.KickSelectedUser();
+        }
 
-        private void BtnBanId_Click(object sender, RoutedEventArgs e) => _vm.Server.BanSelectedById();
+        private void BtnBanId_Click(object sender, RoutedEventArgs e)
+        {
+            var user = _vm.Server.SelectedUser;
+            if (user == null)
+            {
+                MessageBox.Show(this, "请先在成员列表中选择要拉黑的用户。", "提示",
+                    MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+            if (ConfirmDanger(this, $"确定要将用户 {user.UserName}（ID {user.UserId}）拉黑当前房间吗？", "确认拉黑"))
+                _vm.Server.BanSelectedById();
+        }
 
-        private void BtnBanIp_Click(object sender, RoutedEventArgs e) => _vm.Server.BanSelectedByIp();
+        private void BtnBanIp_Click(object sender, RoutedEventArgs e)
+        {
+            var user = _vm.Server.SelectedUser;
+            if (user == null)
+            {
+                MessageBox.Show(this, "请先在成员列表中选择要拉黑的用户。", "提示",
+                    MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+            if (ConfirmDanger(this, $"确定要将 IP {user.Ip} 拉黑当前房间吗？", "确认拉黑"))
+                _vm.Server.BanSelectedByIp();
+        }
 
-        private void BtnUnban_Click(object sender, RoutedEventArgs e) => _vm.Server.UnbanSelected();
+        private void BtnUnban_Click(object sender, RoutedEventArgs e)
+        {
+            var item = _vm.Server.SelectedBlacklist;
+            if (item == null)
+            {
+                MessageBox.Show(this, "请先在黑名单列表中选择要解除的条目。", "提示",
+                    MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+            if (ConfirmDanger(this, $"确定要解除 {item.Key} 在当前房间的黑名单吗？", "确认解除黑名单"))
+                _vm.Server.UnbanSelected();
+        }
+
+        /// <summary>危险操作二次确认：用户点「是」返回 true。</summary>
+        private static bool ConfirmDanger(Window owner, string message, string title)
+            => MessageBox.Show(owner, message, title, MessageBoxButton.YesNo, MessageBoxImage.Warning) == MessageBoxResult.Yes;
 
         private void BtnSaveLimit_Click(object sender, RoutedEventArgs e) => _vm.Server.SaveLimit();
 
