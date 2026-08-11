@@ -4,7 +4,7 @@ using ChatRoom.Core.Net;
 
 namespace ChatRoom.Core.Users
 {
-    /// <summary>服务器侧的一个 WebSocket 连接会话。</summary>
+    /// <summary>服务端的一个 WebSocket 连接会话。</summary>
     public class ServerSession
     {
         public IWebSocketConnection Connection { get; }
@@ -12,9 +12,9 @@ namespace ChatRoom.Core.Users
         public string UserId { get; set; }
         public string UserName { get; set; }
         public string ClientIp { get; set; }
-        /// <summary>是否已通过 Hello 握手（注册用户 ID）。</summary>
+        /// <summary>有没有通过 Hello 握手（上报用户 ID）。</summary>
         public bool Registered { get; set; }
-        /// <summary>当前正在查看的房间号（决定收到完整消息还是只收通知）。</summary>
+        /// <summary>正在看的房间号，决定收到完整消息还是只给个通知。</summary>
         public string ActiveRoomId { get; set; }
         /// <summary>已加入的房间号集合。</summary>
         public ConcurrentDictionary<string, byte> JoinedRooms { get; } = new ConcurrentDictionary<string, byte>();
@@ -31,7 +31,7 @@ namespace ChatRoom.Core.Users
         public void Send(WsMessage msg)
         {
             if (!IsAvailable) return;
-            try { Connection.Send(msg.ToJson()); } catch { /* 发送失败忽略 */ }
+            try { Connection.Send(msg.ToJson()); } catch { /* 发失败就算了 */ }
         }
     }
 }

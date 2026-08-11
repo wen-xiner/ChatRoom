@@ -2,10 +2,10 @@ using Microsoft.Win32;
 
 namespace ChatRoom.Core.Auth
 {
-    /// <summary>注册表读写工具（HKCU 下）。所有读取异常静默返回默认值。</summary>
+    /// <summary>注册表读写工具（HKCU 下），读出错就默默返回默认值。</summary>
     public static class RegistryHelper
     {
-        /// <summary>读 HKCU 子键字符串值。</summary>
+        /// <summary>从 HKCU 子键读个字符串值。</summary>
         public static string GetValue(string subKey, string name, string fallback = "")
         {
             try

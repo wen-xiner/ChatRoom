@@ -6,7 +6,7 @@ namespace ChatRoom.Core.Net
 {
     /// <summary>
     /// 统一协议外壳：{ type, payload }。
-    /// 序列化统一为 camelCase，保证匿名对象与类型化模型（ChatMessage 等）字段名一致。
+    /// 一律用 camelCase 序列化，匿名对象和 ChatMessage 等模型的字段名才对得上。
     /// </summary>
     public class WsMessage
     {

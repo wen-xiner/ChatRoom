@@ -2,12 +2,12 @@ using ChatRoom.Models;
 
 namespace ChatRoom.ViewModels
 {
-    /// <summary>文件消息展示项（附加本地下载状态与 IsMine）。</summary>
+    /// <summary>文件消息展示项（含下载状态与 IsMine）。</summary>
     public class FileMessageItem : ObservableObject
     {
         public FileMessage Data { get; set; }
 
-        /// <summary>是否本人发送（气泡右对齐）。</summary>
+        /// <summary>是不是自己发的（是就靠右）。</summary>
         public bool IsMine { get; set; }
 
         public string SenderDisplay => IsMine ? "我" : Data?.SenderName;

@@ -5,7 +5,7 @@ namespace ChatRoom.Config
 {
     /// <summary>
     /// 全局配置：路径、注册表键名、默认值。
-    /// 运行期数据统一存放在 <see cref="DataDirectory"/> 下，用 JSON 持久化。
+    /// 运行期数据都放 <see cref="DataDirectory"/> 下，用 JSON 存。
     /// </summary>
     public static class AppConfig
     {
@@ -16,7 +16,7 @@ namespace ChatRoom.Config
         public static readonly string AppDirectory =
             AppDomain.CurrentDomain.BaseDirectory.TrimEnd('\\');
 
-        /// <summary>运行期数据目录（JSON / 上传文件）。首次使用自动创建。</summary>
+        /// <summary>运行期数据目录（JSON / 上传文件），首次用自动建。</summary>
         public static readonly string DataDirectory =
             Path.Combine(AppDirectory, "Data");
 
@@ -45,11 +45,11 @@ namespace ChatRoom.Config
         /// <summary>注册表根路径（HKCU）。</summary>
         public const string RegistryRoot = @"Software\ChatRoom";
 
-        /// <summary>安装信息：安装时写入的 4 位随机字符。</summary>
+        /// <summary>安装信息：装的时候写下的 4 位随机字符。</summary>
         public const string RegKeyInstall = @"Software\ChatRoom\Install";
         public const string RegValueUserIdRandom = "UserIdRandom";
 
-        /// <summary>认证信息：注册成功的认证码。</summary>
+        /// <summary>认证信息：注册通过时存的认证码。</summary>
         public const string RegKeyAuth = @"Software\ChatRoom\Auth";
         public const string RegValueAuthCode = "AuthCode";
 
@@ -67,25 +67,25 @@ namespace ChatRoom.Config
         /// <summary>公共房间名称。</summary>
         public const string PublicRoomName = "公共聊天区";
 
-        /// <summary>用户 ID 总长度（4 随机字符 + 注册码后 16 位）。</summary>
+        /// <summary>用户 ID 总长（4 随机字符 + 注册码后 16 位）。</summary>
         public const int UserIdLength = 20;
 
-        /// <summary>0000 房间默认每小时发言上限（0 表示不限）。</summary>
+        /// <summary>0000 房默认每小时发言上限（0 = 不限）。</summary>
         public const int DefaultPublicRoomHourlyLimit = 200;
 
         /// <summary>加入房间时拉取的历史消息条数。</summary>
         public const int HistoryCountOnJoin = 10;
 
-        /// <summary>历史消息每房间保留条数（内存缓冲与历史文件一致）。</summary>
+        /// <summary>每房间历史保留条数（内存缓冲和文件一致）。</summary>
         public const int HistoryKeepCount = 200;
 
         /// <summary>向上滚动加载更早历史时每页条数。</summary>
         public const int HistoryPageSize = 10;
 
-        /// <summary>图片缩略图边长（px）。</summary>
+        /// <summary>图片缩略图边长（像素）。</summary>
         public const int ImageThumbnailSize = 120;
 
-        /// <summary>确保目录存在，返回目录路径。</summary>
+        /// <summary>保证目录在，把路径给你。</summary>
         public static string EnsureDirectory(string dir)
         {
             if (!Directory.Exists(dir))

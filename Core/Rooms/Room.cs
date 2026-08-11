@@ -7,39 +7,39 @@ using ChatRoom.Models;
 
 namespace ChatRoom.Core.Rooms
 {
-    /// <summary>聊天房间。成员集合即消息投递范围（消息隔离的边界）。</summary>
+    /// <summary>聊天房间：成员集合即消息投递范围（消息隔离边界）。</summary>
     public class Room
     {
         public string RoomId { get; }
         public string Name { get; set; }
-        /// <summary>0000 公共房间：不可关闭、不可删除、不限人数。</summary>
+        /// <summary>0000 公共房间：不可关闭删除、不限人数。</summary>
         public bool IsPublic { get; }
         public bool IsClosed { get; private set; }
-        /// <summary>人数上限，0 = 不限。</summary>
+        /// <summary>能装多少人，0 就是不限。</summary>
         public int Capacity { get; set; }
 
         private readonly ConcurrentDictionary<string, ServerSession> _members =
             new ConcurrentDictionary<string, ServerSession>();
-        /// <summary>当前在线成员（连接的会话）。</summary>
+        /// <summary>现在在线的人（连着会话的）。</summary>
         public ICollection<ServerSession> Members => _members.Values;
 
-        /// <summary>最近离线用户（断开连接但未退出，保留在用户列表并标记离线）。</summary>
+        /// <summary>最近离线用户（断开但未退出，保留列表并标记离线）。</summary>
         private readonly List<OfflineUser> _offlineUsers = new List<OfflineUser>();
         private const int MaxOffline = 50;
 
         private readonly ConcurrentQueue<HistoryMessage> _recentMessages = new ConcurrentQueue<HistoryMessage>();
-        /// <summary>历史缓冲条数（与持久化保留条数一致，保证写盘的历史完整）。</summary>
+        /// <summary>历史消息缓存条数，跟存盘的条数一致，保证写盘完整。</summary>
         private const int RecentCapacity = 200;
 
         public int OnlineCount => _members.Count;
 
-        /// <summary>离线用户数（断开未退出的成员）。</summary>
+        /// <summary>离线人数（断开但还没退的）。</summary>
         public int OfflineCount
         {
             get { lock (_offlineUsers) return _offlineUsers.Count; }
         }
 
-        /// <summary>房间总人数 = 在线成员 + 离线用户。</summary>
+        /// <summary>房间总人数 = 在线 + 离线。</summary>
         public int TotalCount => OnlineCount + OfflineCount;
 
         public Room(string roomId, string name, bool isPublic, int capacity = 0)
@@ -54,11 +54,11 @@ namespace ChatRoom.Core.Rooms
 
         public bool RemoveMember(ServerSession s) => _members.TryRemove(s.ConnectionId, out _);
 
-        /// <summary>该用户是否仍有在线会话在房间内（多实例场景，一个 userId 多个 session）。</summary>
+        /// <summary>该用户是否还有在线会话在房间（多实例下同 userId 多个 session）。</summary>
         public bool HasOnline(string userId)
             => _members.Values.Any(m => string.Equals(m.UserId, userId, StringComparison.OrdinalIgnoreCase));
 
-        /// <summary>记录离线用户（按 userId 去重，更新时间）。</summary>
+        /// <summary>记一笔离线用户，按 userId 去重并刷新时间。</summary>
         public void AddOffline(string userId, string userName)
         {
             if (string.IsNullOrWhiteSpace(userId)) return;
@@ -75,13 +75,13 @@ namespace ChatRoom.Core.Rooms
                 {
                     _offlineUsers.Add(new OfflineUser { UserId = userId, UserName = userName, OfflineTime = now });
                 }
-                // 控制离线列表大小：超出保留上限移除最旧
+                // 离线列表别放太多，超出上限就丢掉最旧的
                 while (_offlineUsers.Count > MaxOffline)
                     _offlineUsers.RemoveAt(0);
             }
         }
 
-        /// <summary>移除离线记录（用户重新加入/主动退出时调用）。</summary>
+        /// <summary>移除离线记录（重进/主动退出时调用）。</summary>
         public void RemoveOffline(string userId)
         {
             lock (_offlineUsers)
@@ -90,16 +90,13 @@ namespace ChatRoom.Core.Rooms
             }
         }
 
-        /// <summary>离线用户列表快照（服务器端成员管理展示用）。</summary>
+        /// <summary>把离线用户列表拿出来（给服务器端成员管理展示用）。</summary>
         public List<OfflineUser> GetOfflineUsers()
         {
             lock (_offlineUsers) return _offlineUsers.ToList();
         }
 
-        /// <summary>
-        /// 房间用户列表：在线成员（每个会话一条，Online=true）+ 离线用户（按 userId 一条，Online=false）。
-        /// 某用户已有在线会话时，不重复显示其离线记录（避免同机多实例"在线+离线"同时出现）。
-        /// </summary>
+        /// <summary>房间用户列表：在线每个会话一条，离线按 userId 一条；已在线就不重复显示离线记录。</summary>
         public List<UserInfo> GetUsers()
         {
             var users = new List<UserInfo>();
@@ -119,7 +116,7 @@ namespace ChatRoom.Core.Rooms
 
         public void Close() => IsClosed = true;
 
-        /// <summary>记录最近消息（文本/文件/图片统一载体，加入时下发，仅本房间，历史隔离）。</summary>
+        /// <summary>记录最近消息（文本/文件/图片统一载体，仅本房间，历史隔离）。</summary>
         public void PushRecent(HistoryMessage m)
         {
             _recentMessages.Enqueue(m);
@@ -127,7 +124,7 @@ namespace ChatRoom.Core.Rooms
                 _recentMessages.TryDequeue(out _);
         }
 
-        /// <summary>取最近 n 条消息（只取本房间的）。</summary>
+        /// <summary>取最近 n 条消息，只拿本房间的。</summary>
         public List<HistoryMessage> GetRecent(int n)
         {
             var all = _recentMessages.ToList();

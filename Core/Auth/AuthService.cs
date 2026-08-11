@@ -5,15 +5,15 @@ using ChatRoom.Config;
 namespace ChatRoom.Core.Auth
 {
     /// <summary>
-    /// 认证与身份服务：注册码、认证码校验、注册表写入、20 位用户 ID 拼装。
-    /// 认证状态决定 发送/接收 图片、文件 是否可用（模块4 门禁）。
+    /// 管认证和身份：注册码、认证码校验、写注册表、拼 20 位用户 ID。
+    /// 认没认证决定能不能发/收图片和文件（模块4 门禁）。
     /// </summary>
     public static class AuthService
     {
         /// <summary>
-        /// 本机注册码（组合多种硬件指纹 → SHA256）。
-        /// 组合 CPU/主板/BIOS/磁盘/物理网卡 MAC/系统安装时间，任一项读取失败不影响整体唯一性；
-        /// 修复个别电脑因 CPU/主板序列号读不到、且安装时间相同（统一镜像部署）导致的注册码重复。
+        /// 本机注册码（多种硬件指纹 → SHA256）。
+        /// 拼 CPU/主板/BIOS/磁盘/UUID/安装时间，缺一项不影响唯一性。
+        /// 特意用 UUID 而不用网卡 MAC——多网卡时 MAC 取哪块说不准。
         /// </summary>
         public static string GetRegCode()
         {
@@ -22,11 +22,11 @@ namespace ChatRoom.Core.Auth
                 MachineFingerprint.GetMotherboardSerial(),
                 MachineFingerprint.GetBiosSerial(),
                 MachineFingerprint.GetDiskSerial(),
-                MachineFingerprint.GetPhysicalMac(),
+                MachineFingerprint.GetMachineUuid(),
                 MachineFingerprint.GetSystemInstallTime());
         }
 
-        /// <summary>本机注册码应对应的正确认证码。</summary>
+        /// <summary>根据本机注册码算出的正确认证码。</summary>
         public static string GetExpectedAuthCode()
         {
             return AuthAlgorithm.ComputeAuthCode(GetRegCode());
@@ -41,9 +41,7 @@ namespace ChatRoom.Core.Auth
             return string.Equals(stored.Trim(), GetExpectedAuthCode(), StringComparison.OrdinalIgnoreCase);
         }
 
-        /// <summary>
-        /// 注册：校验认证码并写入注册表。
-        /// </summary>
+        /// <summary>注册：校验认证码并写入注册表。</summary>
         public static bool TryRegister(string authCodeInput, out string error)
         {
             error = null;
@@ -62,8 +60,8 @@ namespace ChatRoom.Core.Auth
         }
 
         /// <summary>
-        /// 20 位用户 ID = 安装时写入注册表的 4 位随机字符 + 注册码后 16 位。
-        /// 开发/未安装场景首次运行自动生成随机 4 字符并持久化。
+        /// 20 位用户 ID = 注册表里 4 位随机字符 + 注册码后 16 位。
+        /// 首次运行没有就自动生成 4 位随机字符存下来。
         /// </summary>
         public static string GetUserId()
         {
@@ -80,7 +78,7 @@ namespace ChatRoom.Core.Auth
 
         private static string GenerateRandom4()
         {
-            const string chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // 去掉易混淆的 I/O/0/1
+            const string chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // 剔掉容易看混的 I/O/0/1
             var rnd = new Random();
             var sb = new StringBuilder(4);
             for (var i = 0; i < 4; i++)

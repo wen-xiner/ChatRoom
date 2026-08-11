@@ -8,7 +8,7 @@ using ChatRoom.ViewModels;
 
 namespace ChatRoom
 {
-    /// <summary>App 生命周期 + 全局异常捕获（调试辅助）。</summary>
+    /// <summary>管 App 启动，顺手抓全局异常，方便排查崩溃。</summary>
     public partial class App : Application
     {
         protected override void OnStartup(StartupEventArgs e)
@@ -34,7 +34,7 @@ namespace ChatRoom
             LogCrash(e.ExceptionObject as Exception);
         }
 
-        /// <summary>把异常堆栈写入 Data\crash.log（用于定位崩溃）。</summary>
+        /// <summary>异常堆栈写入 Data\crash.log。</summary>
         private static void LogCrash(Exception ex)
         {
             if (ex == null) return;

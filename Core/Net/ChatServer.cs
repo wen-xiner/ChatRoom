@@ -23,8 +23,8 @@ namespace ChatRoom.Core.Net
 {
     /// <summary>
     /// WebSocket 聊天服务器（Fleck）。
-    /// 职责：连接管理、握手校验（userId 长度）、房间路由与消息隔离、文件/图片存取。
-    /// 所有 UI 无关，事件经 Log/StateChanged 上抛，由 ViewModel 转发到 UI 线程。
+    /// 管连接、握手校验（userId 长度）、房间路由与消息隔离、文件/图片存取。
+    /// 不碰 UI，事件经 Log/StateChanged 上抛，由 ViewModel 转给界面。
     /// </summary>
     public class ChatServer : IDisposable
     {
@@ -47,13 +47,13 @@ namespace ChatRoom.Core.Net
 
         /// <summary>日志。</summary>
         public event Action<string> Log;
-        /// <summary>状态变化（房间/在线人数等），UI 刷新用。</summary>
+        /// <summary>状态变了（房间/在线人数等），给界面刷新用。</summary>
         public event Action StateChanged;
 
         private WebSocketServer _server;
         private const int ChunkSize = 256 * 1024; // 每帧 256KB
 
-        /// <summary>历史消息负载序列化：与协议一致用 camelCase，保证下发后客户端字段名匹配。</summary>
+        /// <summary>历史消息负载序列化：跟协议一样用 camelCase，客户端字段才对得上。</summary>
         private static readonly JsonSerializer CamelCaseSerializer = JsonSerializer.Create(new JsonSerializerSettings
         {
             ContractResolver = new CamelCasePropertyNamesContractResolver(),
@@ -103,8 +103,8 @@ namespace ChatRoom.Core.Net
         {
             if (!IsRunning) return;
             SaveState();
-            // 主动关闭所有客户端连接：Fleck.Dispose 只关闭监听 socket，已建立的连接不会被断开，
-            // 否则客户端仍显示"已连接"，且消息收发继续被处理。
+            // 逐个关客户端连接：Fleck.Dispose 只关监听 socket，不关已建立的连接，
+            // 否则客户端还显示"已连接"，消息也照样处理。
             foreach (var s in Sessions.Snapshot())
             {
                 try { s.Connection.Close(); } catch { }
@@ -172,7 +172,7 @@ namespace ChatRoom.Core.Net
                     if (!string.IsNullOrWhiteSpace(u.UserId))
                         _users[u.UserId] = u;
 
-                // 加载房间+用户列表（校验文件可读，成员随连接实时变化）
+                // 加载房间+用户列表（只校验文件可读，成员随连接实时变）
                 JsonStore.Load<List<RoomUsersRecord>>(AppConfig.RoomUsersConfigPath);
 
                 Blacklist.LoadFrom(JsonStore.Load<List<BlacklistItem>>(AppConfig.BlacklistConfigPath));
@@ -238,7 +238,7 @@ namespace ChatRoom.Core.Net
             if (target == null) { error = $"房间 {roomId} 中未找到该用户。"; return false; }
 
             room.RemoveMember(target);
-            room.RemoveOffline(target.UserId); // 被踢出不留离线记录
+            room.RemoveOffline(target.UserId); // 被踢的不留离线记录
             target.JoinedRooms.TryRemove(roomId, out _);
             if (target.ActiveRoomId == roomId) target.ActiveRoomId = null;
 
@@ -261,7 +261,7 @@ namespace ChatRoom.Core.Net
             if (Rooms.Get(roomId) == null) { error = "房间不存在。"; return false; }
 
             Blacklist.Add(roomId, key, keyType);
-            // 若该用户正在房间内，一并踢出
+            // 要是在房间里，顺手一起踢了
             var room = Rooms.Get(roomId);
             var target = room?.Members.FirstOrDefault(m =>
                 string.Equals(m.UserId, key, StringComparison.OrdinalIgnoreCase) ||
@@ -340,7 +340,7 @@ namespace ChatRoom.Core.Net
             var userId = msg.payload["userId"]?.ToString();
             var userName = msg.payload["userName"]?.ToString();
 
-            // 服务端只检查用户 ID 长度（应为 20 位）
+            // 服务端只查用户 ID 长度（该是 20 位）
             if (string.IsNullOrEmpty(userId) || userId.Length != AppConfig.UserIdLength)
             {
                 s.Send(WsMessage.Create(WsMessageType.Error, new { reason = "用户 ID 长度不正确（应为 20 位），拒绝连接。" }));
@@ -353,7 +353,7 @@ namespace ChatRoom.Core.Net
             s.UserName = string.IsNullOrWhiteSpace(userName) ? userId.Substring(0, 4) : userName.Trim();
             s.Registered = true;
             RecordUser(s);
-            // 下发 sessionId：客户端用它区分"本人/他人"（同机多实例共享 UserId）
+            // 发 sessionId：客户端靠它区分"自己/别人"（同机多开共享 UserId）
             s.Send(WsMessage.Create(WsMessageType.HelloAck, new { userId = s.UserId, sessionId = s.ConnectionId }));
             Log?.Invoke($"客户端接入: {s.UserName} ({s.UserId}) @ {s.ClientIp}");
             RaiseStateChanged();
@@ -385,18 +385,18 @@ namespace ChatRoom.Core.Net
             }
 
             room.AddMember(s);
-            room.RemoveOffline(s.UserId); // 用户重新加入，清除其离线记录
+            room.RemoveOffline(s.UserId); // 重新进来，清掉旧离线记录
             s.JoinedRooms[roomId] = 0;
             if (string.IsNullOrEmpty(s.ActiveRoomId)) s.ActiveRoomId = roomId;
 
             // 用户列表 = 在线成员（每个会话一条）+ 离线用户（断开未退出，按 userId 一条）
             var users = room.GetUsers();
             var history = room.GetRecent(AppConfig.HistoryCountOnJoin);
-            FillHistoryThumbs(history); // 图片历史补缩略图（历史文件不存 base64，此处从磁盘生成）
+            FillHistoryThumbs(history); // 给图片历史补缩略图（历史不存 base64，现从磁盘生成）
 
             s.Send(WsMessage.Create(WsMessageType.JoinAck, new { roomId, ok = true, name = room.Name, users, history }));
 
-            // 新用户加入通知（消息隔离：只在房间内广播；带 sessionId 供客户端按会话去重）
+            // 通知有人加入（只在房间内广播；带 sessionId 让客户端按会话去重）
             RouteToRoom(room, WsMessage.Create(WsMessageType.UserJoined,
                 new
                 {
@@ -416,7 +416,7 @@ namespace ChatRoom.Core.Net
             if (room == null) return;
 
             room.RemoveMember(s);
-            room.RemoveOffline(s.UserId); // 主动退出不留离线记录
+            room.RemoveOffline(s.UserId); // 主动退的不留离线记录
             s.JoinedRooms.TryRemove(roomId, out _);
             if (s.ActiveRoomId == roomId) s.ActiveRoomId = null;
             RouteToRoom(room, WsMessage.Create(WsMessageType.UserLeft, new
@@ -444,8 +444,8 @@ namespace ChatRoom.Core.Net
                 var room = Rooms.Get(roomId);
                 if (room == null) continue;
                 room.RemoveMember(s);
-                // 断开连接即离线（不因同机多实例同 UserId 其他在线会话而判定"未离线"）。
-                // 离线记录按 userId 去重；客户端把该具体会话条目标记为离线而非移除。
+                // 断开就算离线（不因同机另开一个同 UserId 的会话就说"没离线"）。
+                // 离线记录按 userId 去重；客户端把这条会话标成离线而不是移除。
                 room.AddOffline(s.UserId, s.UserName);
                 RouteToRoom(room, WsMessage.Create(WsMessageType.UserLeft, new
                 {
@@ -463,12 +463,12 @@ namespace ChatRoom.Core.Net
             var content = msg.payload["content"]?.ToString();
             if (string.IsNullOrWhiteSpace(roomId) || string.IsNullOrWhiteSpace(content)) return;
 
-            // 隔离：只能向自己已加入的房间发言
+            // 隔离：只能在自己加入的房间里说话
             if (!s.JoinedRooms.ContainsKey(roomId)) return;
             var room = Rooms.Get(roomId);
             if (room == null || room.IsClosed) return;
 
-            // 可选：0000 公共房间发言上限
+            // 可选：0000 公共房限流
             if (roomId == AppConfig.PublicRoomId && PublicRoomHourlyLimit > 0 && !TryConsumePublicLimit(s.UserId))
             {
                 s.Send(WsMessage.Create(WsMessageType.Error, new { reason = $"发言过于频繁，0000 房间每人每小时上限 {PublicRoomHourlyLimit} 条。" }));
@@ -498,9 +498,9 @@ namespace ChatRoom.Core.Net
 
         /// <summary>
         /// 消息隔离核心：
-        /// 完整消息只发给「当前正在查看该房间」的成员；
-        /// 已加入但未在查看的成员只收到 RoomNotify（房间号，无内容）。
-        /// 未加入的成员（其他房间用户）完全收不到。
+        /// 正在看这个房间的人收完整消息；
+        /// 加入了但没在看的人只收 RoomNotify（房间号，没内容）；
+        /// 其他房间的人啥也收不到。
         /// </summary>
         private void RouteToRoom(Room room, WsMessage msg)
         {
@@ -526,7 +526,7 @@ namespace ChatRoom.Core.Net
 
             if (string.IsNullOrWhiteSpace(roomId) || string.IsNullOrWhiteSpace(fileId) ||
                 string.IsNullOrWhiteSpace(fileName) || totalChunks <= 0) return;
-            if (!s.JoinedRooms.ContainsKey(roomId)) return; // 隔离：只能往自己加入的房间发文件
+            if (!s.JoinedRooms.ContainsKey(roomId)) return; // 隔离：只能给自己加过的房间传文件
 
             _pendingUploads[fileId] = new PendingUpload
             {
@@ -591,7 +591,7 @@ namespace ChatRoom.Core.Net
                         SentTime = DateTime.Now
                     };
                     RouteToRoom(room, WsMessage.Create(WsMessageType.ImageMeta, imageMsg));
-                    // 历史不存缩略图（避免历史文件膨胀），下发时由服务端从磁盘重新生成
+                    // 历史不存缩略图（怕历史文件太大），下发时服务端现从磁盘生成
                     imageMsg.ThumbBase64 = null;
                     room.PushRecent(ToHistory("image", imageMsg));
                 }
@@ -626,12 +626,12 @@ namespace ChatRoom.Core.Net
             var roomId = msg.payload["roomId"]?.ToString();
             var fileId = msg.payload["fileId"]?.ToString();
             if (string.IsNullOrWhiteSpace(roomId) || string.IsNullOrWhiteSpace(fileId)) return;
-            if (!s.JoinedRooms.ContainsKey(roomId)) return; // 隔离：只能下载已加入房间的文件
+            if (!s.JoinedRooms.ContainsKey(roomId)) return; // 隔离：只能下已加入房间的文件
 
             var fileDir = Path.Combine(FileStorageDirectory, roomId, fileId);
             if (!Directory.Exists(fileDir)) return;
 
-            // 返回原文件（thumb.jpg 是服务端生成的缩略图，不属于用户文件）
+            // 回原文件（thumb.jpg 是服务端缩略图，不算用户文件）
             var targetPath = Directory.GetFiles(fileDir)
                 .FirstOrDefault(f => !Path.GetFileName(f).Equals("thumb.jpg", StringComparison.OrdinalIgnoreCase));
             if (targetPath == null || !File.Exists(targetPath)) return;
@@ -682,8 +682,8 @@ namespace ChatRoom.Core.Net
         }
 
         /// <summary>
-        /// 给历史中的图片消息补缩略图：历史文件不存 base64，下发时从磁盘 thumb.jpg 重新生成。
-        /// 在副本上填充，不污染内存中的历史（避免缩略图被再次写入历史文件）。
+        /// 给历史里的图片补缩略图：历史不存 base64，下发时现读磁盘 thumb.jpg。
+        /// 在副本上填，别把内存里的历史弄脏了。
         /// </summary>
         private void FillHistoryThumbs(List<HistoryMessage> history)
         {
@@ -702,7 +702,7 @@ namespace ChatRoom.Core.Net
                     clone["thumbBase64"] = Convert.ToBase64String(File.ReadAllBytes(thumbPath));
                     history[i] = new HistoryMessage { Kind = h.Kind, Payload = clone };
                 }
-                catch { /* 缩略图读取失败则保持占位图 */ }
+                catch { /* 缩略图读不出来就保持占位图 */ }
             }
         }
 

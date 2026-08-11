@@ -4,13 +4,12 @@ using Microsoft.Win32;
 namespace ChatRoom.Core.Auth
 {
     /// <summary>
-    /// 读取机器指纹：CPU / 主板 / BIOS / 磁盘 / 物理网卡 MAC / 系统安装时间。
-    /// 组合多种源保证唯一性：个别电脑读不到 CPU/主板序列号（尤其统一镜像部署），
-    /// 且系统安装时间相同，仅靠两者会产生重复注册码。
+    /// 读机器指纹：CPU / 主板 / BIOS / 磁盘 / 机器 UUID / 系统安装时间。
+    /// 多凑几样免得某台机器序列号读不到导致注册码重了。
     /// </summary>
     public static class MachineFingerprint
     {
-        /// <summary>CPU 序列号（Win32_Processor.ProcessorId）。</summary>
+        /// <summary>把 CPU 序列号抠出来（Win32_Processor.ProcessorId）。</summary>
         public static string GetCpuSerial()
         {
             return WmiFirst("SELECT ProcessorId FROM Win32_Processor", "ProcessorId");
@@ -34,28 +33,21 @@ namespace ChatRoom.Core.Auth
             return WmiFirst("SELECT SerialNumber FROM Win32_DiskDrive WHERE Index = 0", "SerialNumber");
         }
 
-        /// <summary>物理网卡 MAC 地址（去掉分隔符、转大写；同一镜像克隆的机器 MAC 通常仍各不相同）。</summary>
-        public static string GetPhysicalMac()
+        /// <summary>
+        /// 机器 UUID（Win32_ComputerSystemProduct.UUID，SMBIOS 全局唯一）。
+        /// 物理机厂商写死、虚拟机每台不一样；比 MAC 稳，不受多网卡/网卡启停影响。
+        /// </summary>
+        public static string GetMachineUuid()
         {
-            try
-            {
-                using (var searcher = new ManagementObjectSearcher(
-                    "SELECT MACAddress FROM Win32_NetworkAdapter WHERE PhysicalAdapter = TRUE AND MACAddress IS NOT NULL"))
-                {
-                    foreach (ManagementObject obj in searcher.Get())
-                    {
-                        var v = obj["MACAddress"];
-                        if (v != null)
-                        {
-                            var s = v.ToString().Replace(":", "").Replace("-", "").ToUpperInvariant();
-                            if (s.Length >= 12)
-                                return s;
-                        }
-                    }
-                }
-            }
-            catch { /* 网卡不可用时返回空 */ }
-            return "";
+            var v = WmiFirst("SELECT UUID FROM Win32_ComputerSystemProduct", "UUID");
+            if (string.IsNullOrWhiteSpace(v)) return "";
+            var s = v.Trim().ToUpperInvariant();
+            // 滤掉厂商占位值（主板没写 UUID 时返回全 F / 全 0），
+            // 免得多台机器共用同一个占位值。
+            if (s == "FFFFFFFF-FFFF-FFFF-FFFF-FFFFFFFFFFFF" ||
+                s == "00000000-0000-0000-0000-000000000000")
+                return "";
+            return s;
         }
 
         /// <summary>系统安装时间（注册表 InstallDate，Unix 秒），稳定不变。</summary>
@@ -70,7 +62,7 @@ namespace ChatRoom.Core.Auth
                         return val.ToString();
                 }
             }
-            catch { /* 忽略，注册表不可读时返回空 */ }
+            catch { /* 注册表读不了就返回空 */ }
             return "";
         }
 
@@ -92,7 +84,7 @@ namespace ChatRoom.Core.Auth
                     }
                 }
             }
-            catch { /* WMI 不可用时返回空 */ }
+            catch { /* WMI 挂了就返回空 */ }
             return "";
         }
     }

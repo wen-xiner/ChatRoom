@@ -17,10 +17,8 @@ using Microsoft.Win32;
 
 namespace ChatRoom.ViewModels
 {
-    /// <summary>
-    /// 客户端面板逻辑：连接、加入/切换/退出房间、文本/文件/图片收发、认证门禁。
-    /// 消息隔离双保险：服务端只按当前房间投递/通知，客户端再按 roomId 过滤渲染。
-    /// </summary>
+    /// <summary>客户端面板逻辑：连接、进出房间、收发文本/文件/图片、认证门禁。
+    /// 消息双重隔离：服务端只投当前房间，客户端再按 roomId 过滤，双保险。</summary>
     public class ClientViewModel : ObservableObject
     {
         public ChatClient Client { get; private set; }
@@ -36,7 +34,7 @@ namespace ChatRoom.ViewModels
 
         public string UserId => AuthService.GetUserId();
 
-        /// <summary>本机会话 ID（服务器握手时下发，用于区分本人/他人）。</summary>
+        /// <summary>本机会话 ID（握手时下发，区分本人/他人）。</summary>
         public string MySessionId { get; private set; }
 
         private bool _isConnected;
@@ -65,22 +63,22 @@ namespace ChatRoom.ViewModels
         private string _statusDetail = "";
         public string StatusDetail { get => _statusDetail; set { _statusDetail = value; OnPropertyChanged(); } }
 
-        // 按房间隔离的客户端缓存
+        // 按房间隔离的缓存
         private readonly Dictionary<string, List<object>> _roomMessages = new Dictionary<string, List<object>>();
         private readonly Dictionary<string, List<UserInfo>> _roomUsers = new Dictionary<string, List<UserInfo>>();
         private readonly Dictionary<string, JoinedRoomItem> _joinedIndex = new Dictionary<string, JoinedRoomItem>();
         private readonly Dictionary<string, string> _roomNames = new Dictionary<string, string>();
         private readonly Dictionary<string, FileMessageItem> _fileItems = new Dictionary<string, FileMessageItem>();
         private readonly Dictionary<string, ImageMessageItem> _imageItems = new Dictionary<string, ImageMessageItem>();
-        // 进行中的下载：fileId -> (roomId, fileName, kind, chunks)
+        // 进行中的下载：fileId → 下载会话
         private readonly Dictionary<string, DownloadSession> _downloads = new Dictionary<string, DownloadSession>();
 
         private readonly ClientConfig _clientConfig;
 
-        // 已加入过的房间记录（持久化到 client-config.json；连接后仅显示列表，不自动加入，点击后重新加入）
+        // 记下加过的房间（存 client-config.json），连接后只显示不自动进，点了再进
         private readonly List<string> _savedRooms = new List<string>();
 
-        // 向上滚动加载更早历史：请求防抖 + 无更多标记（按当前房间）
+        // 上滚加载更早历史：防抖 + 无更多标记
         private bool _loadingHistory;
         private bool _noMoreHistory;
 
@@ -91,14 +89,14 @@ namespace ChatRoom.ViewModels
             _serverIp = _clientConfig.ServerIp;
             _portText = _clientConfig.Port.ToString();
             _userName = _clientConfig.UserName;
-            // 按当前账号（用户 ID）加载该账号加入过的房间，避免同机多账号互相串
+            // 按账号加载各自加过的房间，别让同机的多个账号串了
             if (_clientConfig.JoinedRoomsByUser != null &&
                 _clientConfig.JoinedRoomsByUser.TryGetValue(AuthService.GetUserId(), out var userRooms) &&
                 userRooms != null)
                 _savedRooms.AddRange(userRooms);
         }
 
-        // ---------------- 连接 ----------------
+        // ---- 连接 ----
 
         public async void Connect()
         {
@@ -153,11 +151,11 @@ namespace ChatRoom.ViewModels
             StatusDetail = "已断开连接";
         }
 
-        // ---------------- 房间管理 ----------------
+        // ---- 房间管理 ----
 
         public void JoinRoom() => JoinRoom(JoinRoomInput.Trim());
 
-        /// <summary>加入指定房间（也用于点击已恢复的历史房间条目重新加入）。</summary>
+        /// <summary>加入指定房间（也用于重新加入历史房间）。</summary>
         public void JoinRoom(string roomId)
         {
             if (string.IsNullOrWhiteSpace(roomId)) return;
@@ -172,7 +170,7 @@ namespace ChatRoom.ViewModels
             StatusDetail = $"正在加入房间 {roomId}...";
         }
 
-        /// <summary>连接后把上次加入过的房间显示到「已加入房间」列表（不自动加入，点击后重新加入）。</summary>
+        /// <summary>连接后把上次加过的房间摆出来，不自动进，点了再进。</summary>
         private void RestoreSavedRooms()
         {
             foreach (var roomId in _savedRooms.ToList())
@@ -185,13 +183,13 @@ namespace ChatRoom.ViewModels
                     OnlineCount = 0,
                     Joined = false
                 };
-                // 必须同步写 _joinedIndex，否则点击加入收到 JoinAck 时 GetJoined 找不到 → 重复新增条目
+                // 这里必须同步写 _joinedIndex，不然收到 JoinAck 时 GetJoined 找不到，会重复加条目
                 _joinedIndex[roomId] = item;
                 JoinedRooms.Add(item);
             }
         }
 
-        /// <summary>退出指定房间。已关闭房间直接本地移除，不发消息给服务器。</summary>
+        /// <summary>退出房间；已关闭的本地直接移除，不发消息。</summary>
         public void LeaveRoom(string roomId)
         {
             if (string.IsNullOrWhiteSpace(roomId)) return;
@@ -204,7 +202,7 @@ namespace ChatRoom.ViewModels
             }
             if (!IsConnected) { StatusDetail = "请先连接服务器。"; return; }
             Client.Send(WsMessage.Create(WsMessageType.LeaveRoom, new { roomId }));
-            // 主动退出后本地立即移除（服务器端已同步移除，不会回 UserLeft 给本人）
+            // 主动退出本地立即移除（服务器不会回 UserLeft）
             RemoveJoinedRoom(roomId);
             StatusDetail = $"已退出房间 {roomId}";
         }
@@ -223,7 +221,7 @@ namespace ChatRoom.ViewModels
             _noMoreHistory = false;
             Client?.Send(WsMessage.Create(WsMessageType.SetActiveRoom, new { roomId }));
 
-            // 切换显示该房间消息（其它房间消息不上屏，隔离）
+            // 只显示当前房间消息（其它房间不上屏）
             Messages.Clear();
             if (_roomMessages.TryGetValue(roomId, out var list))
                 foreach (var m in list) Messages.Add(m);
@@ -234,7 +232,7 @@ namespace ChatRoom.ViewModels
             RefreshUsers(roomId);
         }
 
-        /// <summary>请求当前房间更早的历史（消息列表滚动到顶部时由 UI 调用）。</summary>
+        /// <summary>向上滚到顶时叫它，去服务器拉更早的消息。</summary>
         public void LoadMoreHistory()
         {
             if (!IsConnected || string.IsNullOrEmpty(ActiveRoomId)) return;
@@ -282,7 +280,7 @@ namespace ChatRoom.ViewModels
                 SaveClientConfig();
         }
 
-        /// <summary>从列表与保存中移除一个房间记录（加入失败时清理历史恢复的条目）。</summary>
+        /// <summary>移除房间记录与保存项（加入失败时清理）。</summary>
         private void RemoveSavedRoom(string roomId)
         {
             var item = GetJoined(roomId);
@@ -304,7 +302,7 @@ namespace ChatRoom.ViewModels
                 SaveClientConfig();
         }
 
-        // ---------------- 文本 ----------------
+        // ---- 文本 ----
 
         public void SendText()
         {
@@ -319,7 +317,7 @@ namespace ChatRoom.ViewModels
             InputText = "";
         }
 
-        // ---------------- 文件 / 图片 ----------------
+        // ---- 文件 / 图片 ----
 
         public async void SendFile()
         {
@@ -388,7 +386,7 @@ namespace ChatRoom.ViewModels
             Client.Send(WsMessage.Create(WsMessageType.FileRequest, new { roomId = item.Data.RoomId, fileId, kind = "file" }));
         }
 
-        /// <summary>查看图片原图（认证后可查看/复制/下载）。</summary>
+        /// <summary>看原图（认证过了才能看/复制/下载）。</summary>
         public void ViewImage(ImageMessageItem item)
         {
             if (item == null) return;
@@ -399,7 +397,7 @@ namespace ChatRoom.ViewModels
             Client.Send(WsMessage.Create(WsMessageType.FileRequest, new { roomId = item.Data.RoomId, fileId, kind = "image" }));
         }
 
-        // ---------------- 认证 ----------------
+        // ---- 认证 ----
 
         private bool EnsureAuthForTransfer()
         {
@@ -412,7 +410,7 @@ namespace ChatRoom.ViewModels
             return false;
         }
 
-        /// <summary>打开注册窗口；注册成功刷新认证状态（占位图换缩略图）。</summary>
+        /// <summary>打开注册窗口；成功后刷新认证状态。</summary>
         public void ShowRegistration()
         {
             var dlg = new RegistrationDialog { Owner = Application.Current?.MainWindow };
@@ -433,7 +431,7 @@ namespace ChatRoom.ViewModels
             }
         }
 
-        // ---------------- 收包处理 ----------------
+        // ---- 收包处理 ----
 
         private void HandleMessage(WsMessage msg)
         {
@@ -443,7 +441,7 @@ namespace ChatRoom.ViewModels
                 case WsMessageType.HelloAck:
                     MySessionId = msg.payload["sessionId"]?.ToString();
                     StatusDetail = "服务器握手成功。";
-                    RestoreSavedRooms(); // 恢复显示上次加入的房间（不自动加入）
+                    RestoreSavedRooms(); // 显示上次加过的房间（不自动加入）
                     break;
                 case WsMessageType.Error: StatusDetail = msg.payload["reason"]?.ToString() ?? "服务器返回错误"; break;
                 case WsMessageType.JoinAck: HandleJoinAck(msg); break;
@@ -474,7 +472,7 @@ namespace ChatRoom.ViewModels
             if (!(bool)(msg.payload["ok"] ?? false))
             {
                 StatusDetail = $"加入房间 {roomId} 失败：{msg.payload["reason"]}";
-                // 历史恢复的房间若不可加入，从列表与保存中移除，避免残留
+                // 历史恢复的房间加不进去就从列表里删掉，别残留
                 RemoveSavedRoom(roomId);
                 return;
             }
@@ -507,7 +505,7 @@ namespace ChatRoom.ViewModels
                 item.OnlineCount = users.Count(u => u.Online);
                 item.Available = true;
             }
-            item.Joined = true; // 历史恢复的条目点击加入成功后转为真正已加入
+            item.Joined = true; // 历史恢复的条目加入成功后才算真正已加入
 
             if (!_savedRooms.Contains(roomId))
             {
@@ -525,11 +523,11 @@ namespace ChatRoom.ViewModels
             var user = msg.payload["user"]?.ToObject<UserInfo>();
             if (roomId == null || user == null) return;
 
-            // 按 SessionId 去重（同一机器多实例共享 UserId，不能用 UserId 判重）
+            // 按 SessionId 去重（同机多实例共享 UserId，不能按它判重）
             user.IsMe = user.SessionId == MySessionId;
             if (_roomUsers.TryGetValue(roomId, out var list))
             {
-                // 同一用户重新上线：清除其历史离线条目（避免灰色残留）
+                // 同一个人重新上线，清掉之前的灰色离线条目
                 list.RemoveAll(u => u.UserId == user.UserId && !u.Online);
                 if (!list.Any(u => u.SessionId == user.SessionId))
                     list.Add(user);
@@ -541,7 +539,7 @@ namespace ChatRoom.ViewModels
             if (roomId == ActiveRoomId)
             {
                 RefreshUsers(roomId);
-                // 自己加入的提示不显示给自己（避免"加入提示一直存在"）；其他成员仍会看到
+                // 自己加进来的提示不给自己看，免得一直挂着；别人正常看
                 if (!user.IsMe)
                     AppendMessage(new SystemMessageItem { Text = $"用户 {user.UserName} 加入了房间" });
             }
@@ -551,7 +549,7 @@ namespace ChatRoom.ViewModels
             }
         }
 
-        /// <summary>房间在线人数（只统计 Online=true，不含离线用户）。</summary>
+        /// <summary>在线人数（只算 Online=true）。</summary>
         private int OnlineCountOf(string roomId)
             => _roomUsers.TryGetValue(roomId, out var list) ? list.Count(u => u.Online) : 0;
 
@@ -569,7 +567,7 @@ namespace ChatRoom.ViewModels
             {
                 if (offline)
                 {
-                    // 断开连接 → 离线：把该会话条目标记为离线（保留在列表，灰色状态点）
+                    // 断线就是离线：把这个会话标成离线，人还留在列表里，显示灰点
                     var entry = list.FirstOrDefault(u => u.SessionId == sessionId);
                     if (entry != null)
                     {
@@ -578,14 +576,14 @@ namespace ChatRoom.ViewModels
                     }
                     else if (!string.IsNullOrEmpty(userId))
                     {
-                        // 该会话条目不存在时，按 userId 添加离线条目
+                        // 没有该会话条目时，按 userId 补一个离线条目
                         list.RemoveAll(u => u.UserId == userId && !u.Online);
                         list.Add(new UserInfo { SessionId = sessionId, UserId = userId, UserName = userName, Online = false });
                     }
                 }
                 else
                 {
-                    // 主动退出 / 被踢 → 真正移除
+                    // 主动退出或被踢 → 真移除
                     var removed = list.FirstOrDefault(u => u.SessionId == sessionId);
                     if (removed != null)
                     {
@@ -627,7 +625,7 @@ namespace ChatRoom.ViewModels
             StatusDetail = $"房间 {roomId} 已被关闭";
         }
 
-        /// <summary>被服务器踢出房间：本地立即移除。</summary>
+        /// <summary>被踢出房间，本地立刻把他移除。</summary>
         private void HandleKick(WsMessage msg)
         {
             var roomId = msg.payload["roomId"]?.ToString();
@@ -643,11 +641,11 @@ namespace ChatRoom.ViewModels
             var chat = msg.payload.ToObject<ChatMessage>();
             if (chat == null || string.IsNullOrEmpty(chat.RoomId)) return;
 
-            // 隔离：只渲染当前房间消息；其它房间只标红点
+            // 隔离：当前房间才上屏，别的房间只标红点
             if (chat.RoomId == ActiveRoomId)
             {
                 var item = ToChatItem(chat);
-                // 去重：join 窗口期同一消息可能同时通过 history 与实时广播到达
+                // 去重：join 那会儿同一消息可能历史跟实时广播各来一遍
                 if (IsDuplicateMessage(chat.RoomId, item)) return;
                 _roomMessages[chat.RoomId].Add(item);
                 AppendMessage(item);
@@ -733,7 +731,7 @@ namespace ChatRoom.ViewModels
             }
             if (items.Count == 0) { _noMoreHistory = true; return; }
 
-            // 倒序头插，保证时间升序（顶部最早）。头部插入不触发自动滚底。
+            // 倒序头插保持时间升序（顶部最早），头插不触发自动滚底
             if (_roomMessages.TryGetValue(roomId, out var cache))
             {
                 for (var i = items.Count - 1; i >= 0; i--)
@@ -850,7 +848,7 @@ namespace ChatRoom.ViewModels
             return false;
         }
 
-        // ---------------- 工具 ----------------
+        // ---- 工具 ----
 
         private static BitmapSource BuildImageSource(ImageMessage im, bool authenticated)
         {
@@ -872,7 +870,7 @@ namespace ChatRoom.ViewModels
             return PlaceholderImage();
         }
 
-        /// <summary>未认证/无缩略图时的统一占位图。</summary>
+        /// <summary>未认证/无缩略图时的占位图。</summary>
         private static BitmapSource PlaceholderImage()
         {
             const int w = 140, h = 100;

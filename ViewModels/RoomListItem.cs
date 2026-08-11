@@ -10,7 +10,7 @@ namespace ChatRoom.ViewModels
         public int OnlineCount { get; set; }
         public int OfflineCount { get; set; }
         public string TotalText { get; set; }
-        /// <summary>总人数悬停说明（在线 / 离线 / 总）。</summary>
+        /// <summary>鼠标悬停时显示人数构成（在线/离线/总）。</summary>
         public string TotalTooltip { get; set; }
         public string StatusText { get; set; }
         public Room Room { get; set; }

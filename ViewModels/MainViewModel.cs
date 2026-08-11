@@ -8,7 +8,7 @@ namespace ChatRoom.ViewModels
         Both
     }
 
-    /// <summary>主窗口视图模型：运行模式切换，聚合服务器与客户端。</summary>
+    /// <summary>主窗口的 ViewModel：切换运行模式，把服务器和客户端揉在一起。</summary>
     public class MainViewModel : ObservableObject
     {
         public ServerViewModel Server { get; } = new ServerViewModel();

@@ -1,6 +1,6 @@
 namespace ChatRoom.ViewModels
 {
-    /// <summary>客户端已加入房间的列表项。</summary>
+    /// <summary>客户端「已加入房间」列表项。</summary>
     public class JoinedRoomItem : ObservableObject
     {
         public string RoomId { get; set; }
@@ -14,7 +14,7 @@ namespace ChatRoom.ViewModels
         }
 
         private bool _hasNewMessage;
-        /// <summary>是否有新消息（红点；其它房间新消息只提示不含内容）。</summary>
+        /// <summary>有没有新消息（红点；别的房间只提示，不给内容）。</summary>
         public bool HasNewMessage
         {
             get => _hasNewMessage;
@@ -22,7 +22,7 @@ namespace ChatRoom.ViewModels
         }
 
         private bool _available = true;
-        /// <summary>房间是否可用（服务器关闭后不可用）。</summary>
+        /// <summary>房间是否可用（关闭后为不可用）。</summary>
         public bool Available
         {
             get => _available;
@@ -30,7 +30,7 @@ namespace ChatRoom.ViewModels
         }
 
         private bool _joined = true;
-        /// <summary>本次是否已真正加入（连接后恢复显示的历史房间为 false，点击后重新加入）。</summary>
+        /// <summary>这次是不是真加进去了（恢复的历史房间是 false，点了才变真）。</summary>
         public bool Joined
         {
             get => _joined;

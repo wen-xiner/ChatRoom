@@ -6,16 +6,13 @@ using ChatRoom.Models;
 
 namespace ChatRoom.Core.Rooms
 {
-    /// <summary>
-    /// 房间黑名单（按 userId 或 IP 标识）。
-    /// 加入房间时据此拒绝；支持查看、解除、JSON 持久化。
-    /// </summary>
+    /// <summary>房间的黑名单，按 userId 或 IP 认人，被拉黑的进不来。</summary>
     public class BlacklistStore
     {
         private readonly ConcurrentDictionary<string, List<BlacklistItem>> _byRoom =
             new ConcurrentDictionary<string, List<BlacklistItem>>();
 
-        /// <summary>指定房间的黑名单条目（用于管理界面）。</summary>
+        /// <summary>指定房间的黑名单条目（供管理界面用）。</summary>
         public List<BlacklistItem> GetEntries(string roomId)
             => _byRoom.TryGetValue(roomId, out var list) ? list.ToList() : new List<BlacklistItem>();
 
@@ -42,7 +39,7 @@ namespace ChatRoom.Core.Rooms
             }
         }
 
-        /// <summary>解除黑名单（标记失效并移除）。</summary>
+        /// <summary>把人从黑名单放出来（标记失效并移除）。</summary>
         public bool Remove(string roomId, string key)
         {
             if (!_byRoom.TryGetValue(roomId, out var list)) return false;
@@ -56,7 +53,7 @@ namespace ChatRoom.Core.Rooms
             }
         }
 
-        /// <summary>是否被拉黑：按 userId 或 ip 匹配。</summary>
+        /// <summary>是否被拉黑（按 userId 或 ip 匹配）。</summary>
         public bool IsBanned(string roomId, string userId, string ip)
         {
             if (!_byRoom.TryGetValue(roomId, out var list)) return false;

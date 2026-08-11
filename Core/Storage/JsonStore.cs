@@ -4,7 +4,7 @@ using Newtonsoft.Json;
 
 namespace ChatRoom.Core.Storage
 {
-    /// <summary>JSON 文件读写（原子写：临时文件 + 替换，避免写一半损坏）。</summary>
+    /// <summary>JSON 文件读写（原子写：临时文件 + 替换，防写一半损坏）。</summary>
     public static class JsonStore
     {
         private static readonly JsonSerializerSettings Settings = new JsonSerializerSettings
@@ -13,7 +13,7 @@ namespace ChatRoom.Core.Storage
             NullValueHandling = NullValueHandling.Ignore
         };
 
-        /// <summary>读取 JSON 文件；文件不存在或损坏返回默认实例。</summary>
+        /// <summary>读 JSON 文件，没了或坏了就返回个默认的。</summary>
         public static T Load<T>(string filePath) where T : new()
         {
             try
@@ -27,7 +27,7 @@ namespace ChatRoom.Core.Storage
             catch { return new T(); }
         }
 
-        /// <summary>写入 JSON 文件（自动建目录）。</summary>
+        /// <summary>写 JSON 文件，目录没有会自动建。</summary>
         public static void Save(string filePath, object data)
         {
             try

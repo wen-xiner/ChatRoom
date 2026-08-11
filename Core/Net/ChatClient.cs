@@ -8,8 +8,8 @@ using System.Threading.Tasks;
 namespace ChatRoom.Core.Net
 {
     /// <summary>
-    /// WebSocket 客户端（内置 System.Net.WebSockets.ClientWebSocket）。
-    /// 异步接收循环；大消息自动按分片重组（ReceiveAsync EndOfMessage）。
+    /// WebSocket 客户端（用系统自带 ClientWebSocket）。
+    /// 后台收消息，大消息自动把分片拼起来。
     /// </summary>
     public class ChatClient : IDisposable
     {
@@ -28,9 +28,9 @@ namespace ChatRoom.Core.Net
 
         /// <summary>日志。</summary>
         public event Action<string> Log;
-        /// <summary>收到协议消息（在接收线程触发，调用方需自行调度到 UI 线程）。</summary>
+        /// <summary>收到协议消息（在接收线程触发，调用方要自己切回 UI 线程）。</summary>
         public event Action<WsMessage> OnMessage;
-        /// <summary>连接成功（握手后 HelloAck 由调用方自行确认）。</summary>
+        /// <summary>连接成功（HelloAck 由调用方自己确认）。</summary>
         public event Action OnConnected;
         /// <summary>连接断开。</summary>
         public event Action OnDisconnected;

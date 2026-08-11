@@ -13,7 +13,7 @@ namespace ChatRoom.Core.Storage
         public string FileStoragePath { get; set; } = "";
     }
 
-    /// <summary>用户记录（users.json）：连接过/见过的用户。</summary>
+    /// <summary>用户记录（users.json）：见过面的用户。</summary>
     public class UserRecord
     {
         public string UserId { get; set; }
@@ -38,21 +38,21 @@ namespace ChatRoom.Core.Storage
         public string Name { get; set; }
     }
 
-    /// <summary>客户端连接配置。</summary>
+    /// <summary>客户端连服务器的配置。</summary>
     public class ClientConfig
     {
         public string ServerIp { get; set; } = "127.0.0.1";
         public int Port { get; set; } = AppConfig.DefaultPort;
         public string UserName { get; set; } = "";
         /// <summary>
-        /// 按用户 ID 隔离的已加入房间：userId -> 房间列表。
-        /// 持久化到本机 client-config.json；连接后仅显示列表、不自动加入，点击后重新加入。
-        /// 按账号隔离避免同一台电脑多个账号互相串房间。
+        /// 按用户 ID 分开存已加房间：userId -> 房间列表。
+        /// 存到本机 client-config.json；连接后只显示列表、不自动进，点了才重新进。
+        /// 按账号隔开，免得一台电脑多个账号互相串房。
         /// </summary>
         public Dictionary<string, List<string>> JoinedRoomsByUser { get; set; } = new Dictionary<string, List<string>>();
     }
 
-    /// <summary>UI 配置：窗口大小、表格列宽。</summary>
+    /// <summary>界面配置：窗口大小、表格列宽。</summary>
     public class UiConfig
     {
         public double WindowWidth { get; set; } = 1280;

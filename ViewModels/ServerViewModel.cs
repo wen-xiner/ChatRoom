@@ -10,7 +10,7 @@ using ChatRoom.Models;
 
 namespace ChatRoom.ViewModels
 {
-    /// <summary>服务器面板逻辑：启动/停止、创建/关闭房间、房间列表、状态统计、踢人/黑名单。</summary>
+    /// <summary>服务器面板逻辑：启停服务、开/关房间、看列表和统计、踢人/拉黑。</summary>
     public class ServerViewModel : ObservableObject
     {
         public ChatServer Server { get; private set; }
@@ -21,7 +21,7 @@ namespace ChatRoom.ViewModels
         public ObservableCollection<string> Logs { get; } = new ObservableCollection<string>();
         private const int MaxLogs = 300;
 
-        // 服务器侧选中项（房间/成员/黑名单条目）
+        // 服务器侧选中项（房间/成员/黑名单）
         private RoomListItem _selectedRoom;
         private ServerUserItem _selectedUser;
         private BlacklistItem _selectedBlacklist;
@@ -37,7 +37,7 @@ namespace ChatRoom.ViewModels
         public string PortText { get => _portText; set { _portText = value; OnPropertyChanged(); } }
 
         private string _limitText = AppConfig.DefaultPublicRoomHourlyLimit.ToString();
-        /// <summary>0000 房间每小时发言上限（0=不限）。</summary>
+        /// <summary>0000 房间每小时发言上限，0 就是不限。</summary>
         public string LimitText { get => _limitText; set { _limitText = value; OnPropertyChanged(); } }
 
         private string _createRoomId = "";
@@ -55,7 +55,7 @@ namespace ChatRoom.ViewModels
         public string OnlineUserText => $"在线用户 {Server?.Sessions.OnlineUserCount ?? 0}";
         public string RoomCountText => $"房间 {(IsRunning ? Server?.Rooms.Count ?? 0 : 0)}";
 
-        // ---------------- 操作 ----------------
+        // ---- 操作 ----
 
         public void Start()
         {
@@ -82,14 +82,14 @@ namespace ChatRoom.ViewModels
             RefreshAll();
         }
 
-        /// <summary>创建房间。无论是否输入房间号都先弹窗确认，避免误创建。</summary>
+        /// <summary>创建房间。不管有没有输房间号都先弹窗问一下，防手滑。</summary>
         public void CreateRoom()
         {
             if (!IsRunning) { AddLog("请先启动服务器。"); return; }
             var id = CreateRoomId.Trim();
             var name = CreateRoomName.Trim();
 
-            // 创建前统一确认：空房间号说明将随机生成；有输入则显示房间号/名称
+            // 创建前统一确认：空房间号将随机生成，有输入则显示房间号/名称
             var message = string.IsNullOrWhiteSpace(id)
                 ? "未输入房间号，将随机生成一个 4~6 位数字房间号。\n是否继续创建？"
                 : (string.IsNullOrWhiteSpace(name)
@@ -108,7 +108,7 @@ namespace ChatRoom.ViewModels
                 AddLog($"已创建房间 {roomId}（{name}）");
                 CreateRoomId = "";
                 CreateRoomName = "";
-                // 创建成功弹窗提示（自定义房间号与随机生成都提示）
+                // 创建成功统一弹窗提示
                 MessageBox.Show(Application.Current?.MainWindow,
                     $"房间 {roomId}（{name}）创建成功。", "创建成功",
                     MessageBoxButton.OK, MessageBoxImage.Information);
@@ -116,7 +116,7 @@ namespace ChatRoom.ViewModels
             else
             {
                 AddLog(error);
-                // 创建失败（房间号已存在/格式不符等）弹窗提示，居中于主窗口（服务器界面）
+                // 创建失败就弹窗（房间号重复、格式不对等），窗口挂主窗口上
                 MessageBox.Show(Application.Current?.MainWindow, error, "创建房间失败",
                     MessageBoxButton.OK, MessageBoxImage.Warning);
             }
@@ -133,7 +133,7 @@ namespace ChatRoom.ViewModels
             RefreshAll();
         }
 
-        // ---------------- 房间详情（成员 / 黑名单 / 踢出 / 拉黑） ----------------
+        // ---- 房间详情（成员 / 黑名单 / 踢出 / 拉黑） ----
 
         public RoomListItem SelectedRoom
         {
@@ -153,7 +153,7 @@ namespace ChatRoom.ViewModels
         public string RoomDetailsTitle =>
             SelectedRoom == null ? "未选择房间" : $"房间 #{SelectedRoom.RoomId}（{SelectedRoom.Name}）";
 
-        /// <summary>按选中房间刷新成员列表与黑名单。</summary>
+        /// <summary>按选中房间刷新成员与黑名单。</summary>
         public void RefreshRoomDetails()
         {
             RoomMembers.Clear();
@@ -162,8 +162,7 @@ namespace ChatRoom.ViewModels
             var room = SelectedRoom.Room;
             foreach (var m in room.Members.OrderBy(x => x.UserName))
                 RoomMembers.Add(new ServerUserItem { UserId = m.UserId, UserName = m.UserName, Ip = m.ClientIp, Online = true });
-            // 离线用户（断开未退出）：每个离线连接都显示（灰点 + "离线"字样）。
-            // 不按 UserId 过滤在线会话，避免同机多实例共享 UserId 时断开的连接不显示离线。
+            // 离线的（断开没退）都显示出来，灰点加"离线"；不按 UserId 过滤，免得同机多账号时离线的人漏了
             foreach (var o in room.GetOfflineUsers().OrderBy(x => x.UserName))
                 RoomMembers.Add(new ServerUserItem { UserId = o.UserId, UserName = o.UserName, Ip = "", Online = false });
             foreach (var b in Server.Blacklist.GetEntries(room.RoomId).OrderByDescending(x => x.AddedTime))
@@ -204,8 +203,7 @@ namespace ChatRoom.ViewModels
         public void UnbanSelected()
         {
             if (Server == null || SelectedRoom == null || SelectedBlacklist == null) return;
-            // 先取局部变量：UnbanUser 内部会同步触发 RefreshAll，进而清空黑名单列表并把
-            // SelectedBlacklist 置为 null，不能再读取该属性。
+            // 先存局部变量：UnbanUser 会触发 RefreshAll 清空黑名单，SelectedBlacklist 会被置 null，不能再用
             var roomId = SelectedRoom.RoomId;
             var key = SelectedBlacklist.Key;
             if (Server.UnbanUser(roomId, key, out var error))
@@ -215,7 +213,7 @@ namespace ChatRoom.ViewModels
             RefreshRoomDetails();
         }
 
-        /// <summary>设置 0000 房间每小时发言上限并持久化。</summary>
+        /// <summary>设 0000 房间的发言上限，顺便存下来。</summary>
         public void SaveLimit()
         {
             if (Server == null) { AddLog("请先启动服务器。"); return; }
@@ -229,13 +227,13 @@ namespace ChatRoom.ViewModels
             AddLog($"已设置 0000 房间发言上限 {limit}/小时");
         }
 
-        // ---------------- 刷新 ----------------
+        // ---- 刷新 ----
 
         private void RefreshAll()
         {
             var keepId = SelectedRoom?.RoomId;
             Rooms.Clear();
-            // 服务器停止后不再显示任何房间（房间已不对外服务），避免列表残留
+            // 服务器停了就不显示房间了（已经不对外），别让列表里残留一堆
             if (Server != null && IsRunning)
             {
                 foreach (var r in Server.Rooms.AllRooms.OrderBy(x => x.RoomId))
@@ -246,14 +244,14 @@ namespace ChatRoom.ViewModels
                         Name = r.Name,
                         OnlineCount = r.OnlineCount,
                         OfflineCount = r.OfflineCount,
-                        TotalText = r.TotalCount.ToString(), // 总人数 = 在线 + 离线
+                        TotalText = r.TotalCount.ToString(), // 总数 = 在线 + 离线
                         TotalTooltip = $"在线 {r.OnlineCount} / 离线 {r.OfflineCount} / 总 {r.TotalCount}",
                         StatusText = r.IsPublic ? "公共" : (r.IsClosed ? "已关闭" : "运行中"),
                         Room = r
                     });
                 }
             }
-            // 保留房间选中，并刷新其详情（成员/黑名单）
+            // 保持选中，刷新详情
             if (keepId != null)
                 SelectedRoom = Rooms.FirstOrDefault(r => r.RoomId == keepId);
             OnPropertyChanged(nameof(ConnectedCountText));

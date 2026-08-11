@@ -2,7 +2,7 @@ using ChatRoom.Models;
 
 namespace ChatRoom.ViewModels
 {
-    /// <summary>文本消息展示项（附加 IsMine，用于气泡左右方向与配色）。</summary>
+    /// <summary>文本消息展示项，带 IsMine 决定气泡靠左还是靠右。</summary>
     public class ChatMessageItem
     {
         public ChatMessage Data { get; set; }

@@ -1,6 +1,6 @@
 namespace ChatRoom.ViewModels
 {
-    /// <summary>系统消息（加入/离开/房间关闭等）。</summary>
+    /// <summary>系统消息，比如谁进了、谁走了、房间关了。</summary>
     public class SystemMessageItem
     {
         public string Text { get; set; }

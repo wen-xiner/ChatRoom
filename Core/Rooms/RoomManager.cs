@@ -7,7 +7,7 @@ using ChatRoom.Config;
 
 namespace ChatRoom.Core.Rooms
 {
-    /// <summary>房间管理器：创建/关闭/查询/随机房间号；0000 公共房间启动即存在且不可删。</summary>
+    /// <summary>管房间的：创建、关闭、查询、随机房间号，公共房 0000 一启动就常驻。</summary>
     public class RoomManager
     {
         private readonly ConcurrentDictionary<string, Room> _rooms =
@@ -15,7 +15,7 @@ namespace ChatRoom.Core.Rooms
 
         public RoomManager()
         {
-            // 0000 公共房间：服务器启动后自动存在
+            // 公共房间 0000，服务器一启动就自动建好
             _rooms[AppConfig.PublicRoomId] = new Room(AppConfig.PublicRoomId, AppConfig.PublicRoomName, isPublic: true);
         }
 
@@ -29,9 +29,7 @@ namespace ChatRoom.Core.Rooms
             return _rooms.TryGetValue(roomId, out var r) ? r : null;
         }
 
-        /// <summary>
-        /// 创建房间：房间号 4~6 位数字，不能是 0000，不能与已存在房间重号。
-        /// </summary>
+        /// <summary>创建房间：房间号 4~6 位数字，不能是 0000，也不能重号。</summary>
         public bool TryCreate(string roomId, string name, out Room room, out string error)
         {
             room = null;
@@ -63,7 +61,7 @@ namespace ChatRoom.Core.Rooms
             return true;
         }
 
-        /// <summary>随机生成 4~6 位数字房间号，避开已存在房间与 0000。</summary>
+        /// <summary>随机整个 4~6 位房间号，别撞上已有的和 0000。</summary>
         public string GenerateRandomId()
         {
             var rnd = new Random();
@@ -80,7 +78,7 @@ namespace ChatRoom.Core.Rooms
             return rnd.Next(100000, 1000000).ToString(); // 兜底
         }
 
-        /// <summary>关闭房间（0000 不允许）。关闭后客户端不能加入，成员收到 RoomClosed。</summary>
+        /// <summary>关闭房间（0000 除外），关闭后不可加入，成员收到 RoomClosed。</summary>
         public bool TryClose(string roomId, out Room room, out string error)
         {
             room = null;

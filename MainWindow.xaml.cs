@@ -10,10 +10,7 @@ using ChatRoom.ViewModels;
 
 namespace ChatRoom
 {
-    /// <summary>
-    /// 主窗口：运行模式切换 + 服务器/客户端面板事件接线。
-    /// 数据与逻辑在 ViewModels，此处只做 UI 事件转发。
-    /// </summary>
+    /// <summary>主窗口：切换运行模式、接线服务器/客户端面板事件。逻辑都在 ViewModels，这里只转发 UI 事件。</summary>
     public partial class MainWindow : Window
     {
         private readonly MainViewModel _vm = new MainViewModel();
@@ -32,7 +29,7 @@ namespace ChatRoom
             RefreshAuthStatus();
         }
 
-        /// <summary>加载并应用窗口大小与表格列宽（JSON 持久化）。</summary>
+        /// <summary>读取 UI 配置并应用窗口大小与列宽。</summary>
         private void ApplyUiConfig()
         {
             var ui = JsonStore.Load<UiConfig>(ChatRoom.Config.AppConfig.UiConfigPath);
@@ -41,7 +38,7 @@ namespace ChatRoom
                 Width = ui.WindowWidth;
                 Height = ui.WindowHeight;
             }
-            // 固定列夹紧到合理范围；名称列始终弹性，避免旧配置/用户拖宽导致列总宽超过面板
+            // 固定列限制在合理范围，名称列自适应，防止拖太宽把面板撑爆。
             ColRoomId.Width = Clamp(ui.ColRoomId, 48, 80);
             ColName.Width = new DataGridLength(1, DataGridLengthUnitType.Star);
             ColOnline.Width = Clamp(ui.ColOnline, 36, 50);
@@ -74,13 +71,13 @@ namespace ChatRoom
                 : "认证状态：未认证（图片/文件收发受限）";
         }
 
-        // ---------------- 运行模式 ----------------
+        // ---- 运行模式 ----
 
         private void RbClient_Checked(object sender, RoutedEventArgs e) => _vm.Mode = RunMode.Client;
         private void RbServer_Checked(object sender, RoutedEventArgs e) => _vm.Mode = RunMode.Server;
         private void RbBoth_Checked(object sender, RoutedEventArgs e) => _vm.Mode = RunMode.Both;
 
-        // ---------------- 服务器 ----------------
+        // ---- 服务器 ----
 
         private void BtnStartServer_Click(object sender, RoutedEventArgs e) => _vm.Server.Start();
 
@@ -105,7 +102,7 @@ namespace ChatRoom
                 _vm.Server.CloseRoom(item.RoomId);
         }
 
-        // ---------------- 客户端 ----------------
+        // ---- 客户端 ----
 
         private void BtnConnect_Click(object sender, RoutedEventArgs e) => _vm.Client.Connect();
 
@@ -134,7 +131,7 @@ namespace ChatRoom
         {
             if (LstJoinedRooms.SelectedItem is JoinedRoomItem item)
             {
-                // 历史恢复的条目（未加入）点击 = 加入；已加入的条目点击 = 切换查看
+                // 历史恢复的条目点了就是加入，已加入的点了就是切换查看
                 if (item.Joined)
                     _vm.Client.SetActiveRoom(item.RoomId);
                 else
@@ -163,7 +160,7 @@ namespace ChatRoom
             RefreshAuthStatus();
         }
 
-        // ---------------- 消息模板事件 ----------------
+        // ---- 消息模板事件 ----
 
         private void BtnDownload_Click(object sender, RoutedEventArgs e)
         {
@@ -177,16 +174,16 @@ namespace ChatRoom
                 _vm.Client.ViewImage(item);
         }
 
-        // ---------------- 消息自动滚动 ----------------
+        // ---- 消息自动滚动 ----
 
         private void Messages_CollectionChanged(object sender, NotifyCollectionChangedEventArgs e)
         {
             if (e.Action == NotifyCollectionChangedAction.Add)
             {
-                // 加载更早历史是头插（不在末尾），此时不自动滚底，保持用户浏览位置
+                // 头插加载更早历史时不自动滚底，保持浏览位置
                 if (e.NewStartingIndex >= 0 && e.NewStartingIndex < LstMessages.Items.Count - 1)
                     return;
-                // 等新消息容器布局完成后再滚到底部：CollectionChanged 时容器可能尚未生成，立即 ScrollIntoView 会失效
+                // 等容器布局好再滚到底，CollectionChanged 时容器可能还没生成，立即滚会失效
                 Dispatcher.BeginInvoke(new Action(() =>
                 {
                     var scroll = FindVisualChild<ScrollViewer>(LstMessages);
@@ -200,7 +197,7 @@ namespace ChatRoom
 
         private void LstMessages_ScrollChanged(object sender, ScrollChangedEventArgs e)
         {
-            // 消息列表滚动到顶部时请求加载更早历史
+            // 滚到顶部时加载更早历史
             if (e.VerticalOffset <= 0)
                 _vm.Client.LoadMoreHistory();
         }
@@ -217,12 +214,11 @@ namespace ChatRoom
             return null;
         }
 
-        // ---------------- 服务器面板：整区滚轮滚动 ----------------
+        // ---- 服务器面板：整区滚轮滚动 ----
 
         private void ServerScroll_PreviewMouseWheel(object sender, MouseWheelEventArgs e)
         {
-            // 鼠标在服务器面板任意位置（含内部列表/表格上方）时统一滚动整个面板，
-            // 避免只有悬停在右侧滚动条上才能滚动。
+            // 鼠标在面板任意位置都能滚整个面板，不必非把鼠标放到右侧滚动条上。
             if (!(sender is ScrollViewer sv)) return;
             var lines = SystemParameters.WheelScrollLines;
             if (lines < 0)
@@ -241,7 +237,7 @@ namespace ChatRoom
             e.Handled = true;
         }
 
-        // ---------------- 服务器房间详情：踢人 / 黑名单 ----------------
+        // ---- 服务器房间详情：踢人 / 黑名单 ----
 
         private void LstRoomMembers_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
@@ -305,13 +301,13 @@ namespace ChatRoom
                 _vm.Server.UnbanSelected();
         }
 
-        /// <summary>危险操作二次确认：用户点「是」返回 true。</summary>
+        /// <summary>危险操作二次确认，点「是」返回 true。</summary>
         private static bool ConfirmDanger(Window owner, string message, string title)
             => MessageBox.Show(owner, message, title, MessageBoxButton.YesNo, MessageBoxImage.Warning) == MessageBoxResult.Yes;
 
         private void BtnSaveLimit_Click(object sender, RoutedEventArgs e) => _vm.Server.SaveLimit();
 
-        // ---------------- 关闭时清理 ----------------
+        // ---- 关闭时清理 ----
 
         protected override void OnClosed(System.EventArgs e)
         {

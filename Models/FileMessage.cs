@@ -2,7 +2,7 @@ using System;
 
 namespace ChatRoom.Models
 {
-    /// <summary>文件消息（下载状态由客户端本地维护，未认证不可下载）。</summary>
+    /// <summary>文件消息（下载状态客户端自己管，没认证不能下载）。</summary>
     public class FileMessage
     {
         public string RoomId { get; set; }

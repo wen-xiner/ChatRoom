@@ -5,7 +5,7 @@ using System.Windows.Data;
 
 namespace ChatRoom.ViewModels
 {
-    /// <summary>bool → HorizontalAlignment：true=右（本人消息），false=左（他人消息）。</summary>
+    /// <summary>bool 转对齐方向：true 靠右（自己发的），false 靠左（别人发的）。</summary>
     public class BoolToHorizontalAlignmentConverter : IValueConverter
     {
         public object Convert(object value, Type targetType, object parameter, CultureInfo culture)

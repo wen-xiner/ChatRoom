@@ -6,7 +6,7 @@ using Microsoft.Win32;
 
 namespace ChatRoom.Views
 {
-    /// <summary>图片查看窗口：显示原图，支持复制/下载。</summary>
+    /// <summary>看大图的窗口，能复制也能存下来。</summary>
     public partial class ImageViewerDialog : Window
     {
         private readonly string _filePath;

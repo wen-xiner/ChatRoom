@@ -4,7 +4,7 @@ using System.Linq;
 
 namespace ChatRoom.Core.Users
 {
-    /// <summary>连接会话集合；提供按 userId 去重的在线用户统计。</summary>
+    /// <summary>连接会话集合；提供按 userId 去重的在线用户数。</summary>
     public class SessionManager
     {
         private readonly ConcurrentDictionary<string, ServerSession> _byConnection =
@@ -19,12 +19,12 @@ namespace ChatRoom.Core.Users
         public ServerSession GetByConnectionId(string connectionId)
             => _byConnection.TryGetValue(connectionId, out var s) ? s : null;
 
-        /// <summary>当前全部会话快照（停服时逐个关闭连接；遍历不受并发增删影响）。</summary>
+        /// <summary>把当前所有会话打个快照（停服时逐个关连接，遍历不怕并发增删）。</summary>
         public List<ServerSession> Snapshot() => _byConnection.Values.ToList();
 
         public int ConnectionCount => _byConnection.Count;
 
-        /// <summary>在线用户总数（按 userId 去重）。</summary>
+        /// <summary>在线用户总数，按 userId 去重。</summary>
         public int OnlineUserCount =>
             _byConnection.Values
                 .Where(x => x.Registered && !string.IsNullOrEmpty(x.UserId))
