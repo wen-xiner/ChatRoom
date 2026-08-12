@@ -122,6 +122,10 @@ namespace ChatRoom.ViewModels
             {
                 IsConnected = false;
                 StatusDetail = "连接已断开";
+                // 服务器关闭/网络掉线才弹窗；用户主动断开时 ChatClient 不触发 OnDisconnected。
+                MessageBox.Show(Application.Current?.MainWindow,
+                    "与服务器的连接已断开，请检查服务器是否仍在运行。",
+                    "连接断开", MessageBoxButton.OK, MessageBoxImage.Warning);
             });
             Client.OnMessage += msg => UiHelper.Dispatch(() => HandleMessage(msg));
 

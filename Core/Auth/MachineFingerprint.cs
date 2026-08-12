@@ -1,3 +1,4 @@
+using System;
 using System.Management;
 using Microsoft.Win32;
 
@@ -55,7 +56,15 @@ namespace ChatRoom.Core.Auth
         {
             try
             {
-                using (var key = Registry.LocalMachine.OpenSubKey(@"SOFTWARE\Microsoft\Windows NT\CurrentVersion"))
+                // 显式开 64 位视图，绕开 WOW64 注册表重定向：
+                // 32 位进程默认读 32 位视图，HKLM\SOFTWARE 会被重定向到 Wow6432Node，
+                // 那里的 InstallDate 常为 0/不存在，导致指纹读空、多台机器注册码一致。
+                // 32 位系统上没有 64 位视图，退回默认即可。
+                var view = Environment.Is64BitOperatingSystem
+                    ? RegistryView.Registry64
+                    : RegistryView.Default;
+                using (var baseKey = RegistryKey.OpenBaseKey(RegistryHive.LocalMachine, view))
+                using (var key = baseKey.OpenSubKey(@"SOFTWARE\Microsoft\Windows NT\CurrentVersion"))
                 {
                     var val = key?.GetValue("InstallDate");
                     if (val != null)

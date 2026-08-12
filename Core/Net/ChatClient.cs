@@ -21,6 +21,8 @@ namespace ChatRoom.Core.Net
         private ClientWebSocket _ws;
         private CancellationTokenSource _cts;
         private bool _running;
+        // 是否用户主动断开：true 时收包循环退出不再触发 OnDisconnected（不然弹窗打扰）
+        private bool _userDisconnect;
 
         public bool IsConnected { get; private set; }
         public string ServerIp { get; private set; }
@@ -38,6 +40,7 @@ namespace ChatRoom.Core.Net
         public async Task<bool> ConnectAsync(string ip, int port)
         {
             if (IsConnected) return true;
+            _userDisconnect = false; // 新连接重置，断了要能再通知
             ServerIp = ip;
             ServerPort = port;
             try
@@ -89,6 +92,7 @@ namespace ChatRoom.Core.Net
 
         public void Disconnect()
         {
+            _userDisconnect = true; // 用户主动断开，收包循环退出时不触发 OnDisconnected
             _running = false;
             try
             {
@@ -138,12 +142,13 @@ namespace ChatRoom.Core.Net
             }
             finally
             {
-                if (_running)
-                {
-                    _running = false;
-                    IsConnected = false;
+                // 之前按 _running 判断：服务器发 Close 帧时循环体先置 _running=false，
+                // finally 里就漏触发 OnDisconnected，客户端一直显示"已连接"、发送静默丢失。
+                // 现在一律清理，只有用户主动断开（_userDisconnect）才不通知。
+                _running = false;
+                IsConnected = false;
+                if (!_userDisconnect)
                     OnDisconnected?.Invoke();
-                }
             }
         }
 
